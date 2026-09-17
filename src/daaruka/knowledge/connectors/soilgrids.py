@@ -7,14 +7,14 @@ from daaruka.knowledge.models import SoilProfile, SoilPropertyLayer
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SOILGRIDS_PROPERTIES = ["soc", "phh2o", "cec", "clay", "sand", "silt", "bdod", "nitrogen"]
-DEFAULT_DEPTHS = ["0-5cm", "5-15cm", "15-30cm", "30-60cm"]
+DEFAULT_SOILGRIDS_PROPERTIES = ["soc", "phh2o", "clay", "sand", "bdod"]
+DEFAULT_DEPTHS = ["0-5cm", "5-15cm"]
 
 
 class SoilGridsClient(BaseConnector):
     """Thin client for querying ISRIC SoilGrids 250m v2.0 REST API."""
 
-    def __init__(self, base_url: str = "https://rest.isric.org/soilgrids/v2.0", timeout: float = 15.0):
+    def __init__(self, base_url: str = "https://rest.isric.org/soilgrids/v2.0", timeout: float = 25.0):
         super().__init__(base_url=base_url, timeout=timeout)
 
     def _parse_soilgrids_response(self, raw_data: Dict[str, Any], lat: float, lon: float) -> SoilProfile:
