@@ -47,9 +47,7 @@ htmlcov/
 *.swo
 
 # Vector DB & Local Storage
-chroma_data/
-*.chroma
-*.sqlite3
+# chroma_data is tracked for seamless cloud deployment
 data/raw/
 data/processed/
 
