@@ -43,17 +43,19 @@ class MultiMetricReasoningEngine:
 
         conf_levels = [r.confidence.lower() for r in recommendations]
         num_missing = len(gaps.missing_categories) if hasattr(gaps, "missing_categories") else 0
+        completeness = gaps.data_completeness_score if hasattr(gaps, "data_completeness_score") else 1.0
 
-        if "low" in conf_levels:
+        if completeness < 0.6 or "low" in conf_levels or num_missing >= 3:
             overall = "low"
-        elif "medium" in conf_levels or num_missing > 2:
+        elif completeness < 0.8 or "medium" in conf_levels or num_missing >= 2:
             overall = "medium"
         else:
             overall = "high"
 
         rationale = (
-            f"Overall assessment confidence is rated {overall.upper()} based on {len(recommendations)} peer-reviewed "
-            f"action(s) with verified page-level citations from FAO/IPCC/CBD literature and {num_missing} missing ecological pillar(s)."
+            f"Overall assessment confidence is rated {overall.upper()} ({int(completeness * 100)}% data completeness) "
+            f"based on {len(recommendations)} peer-reviewed action(s) with verified page-level citations from FAO/IPCC/CBD literature "
+            f"and {num_missing} missing ecological pillar(s)."
         )
         return overall, rationale
 
@@ -313,8 +315,22 @@ class MultiMetricReasoningEngine:
         fao_agroforestry_chunks = [
             c for c in chunks_list if "fao" in c.citation.publisher.lower() and ("agroforestry" in c.content.lower() or "agroecological" in c.content.lower() or "tree" in c.content.lower())
         ]
-        fao_grassland_chunks = [
-            c for c in chunks_list if "fao" in c.citation.publisher.lower() and ("grazing" in c.content.lower() or "pasture" in c.content.lower() or "grassland" in c.content.lower())
+        fao_rotational_grazing_chunks = [
+            c for c in chunks_list if "fao" in c.citation.publisher.lower() and (
+                "grazing practices" in c.content.lower()
+                or "intensity of biomass" in c.content.lower()
+                or "418" in c.content
+                or "stocking" in c.content.lower()
+                or "grazing" in c.content.lower()
+            )
+        ]
+        fao_pasture_div_chunks = [
+            c for c in chunks_list if "fao" in c.citation.publisher.lower() and (
+                "nitrogen-fixing" in c.content.lower()
+                or "grassland diversification" in c.content.lower()
+                or "perennial grassland" in c.content.lower()
+                or "408" in str(c.citation.page)
+            ) and (not fao_rotational_grazing_chunks or c.chunk_id != fao_rotational_grazing_chunks[0].chunk_id)
         ]
         fao_cover_crop_chunks = [
             c for c in chunks_list if "fao" in c.citation.publisher.lower() and ("cover cropping" in c.content.lower() or "cover crops" in c.content.lower())
@@ -416,8 +432,8 @@ class MultiMetricReasoningEngine:
         # -------------------------------------------------------------
         if is_grassland or is_overgrazing:
             rot_sources = []
-            if fao_grassland_chunks:
-                rot_sources.append(_to_source(fao_grassland_chunks[0]))
+            if fao_rotational_grazing_chunks:
+                rot_sources.append(_to_source(fao_rotational_grazing_chunks[0]))
             elif chunks_list:
                 rot_sources.append(_to_source(chunks_list[0]))
 
@@ -450,10 +466,10 @@ class MultiMetricReasoningEngine:
                 )
 
             div_sources = []
-            if len(fao_grassland_chunks) > 1:
-                div_sources.append(_to_source(fao_grassland_chunks[1]))
-            elif fao_grassland_chunks:
-                div_sources.append(_to_source(fao_grassland_chunks[0]))
+            if fao_pasture_div_chunks:
+                div_sources.append(_to_source(fao_pasture_div_chunks[0]))
+            elif len(fao_rotational_grazing_chunks) > 1:
+                div_sources.append(_to_source(fao_rotational_grazing_chunks[1]))
             if cbd_policy_chunks:
                 div_sources.append(_to_source(cbd_policy_chunks[0]))
 

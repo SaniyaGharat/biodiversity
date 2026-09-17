@@ -61,11 +61,11 @@ def generate_targeted_knowledge_queries(assessment: SiteAssessmentInput) -> List
     # 2. Grassland Grazing & Rangeland Management Query
     if is_grassland or is_overgrazing:
         queries.append((
-            "grassland grazing pasture stocking density soil carbon degradation perennial legumes",
+            "Grazing practices frequency and intensity of biomass removals soil structure carbon sink source",
             ["soil", "carbon", "grassland"],
         ))
         queries.append((
-            "pasture production nitrogen-fixing species grassland diversification soil conservation",
+            "grassland diversification nitrogen-fixing species perennial grassland species soil conservation",
             ["soil", "agriculture"],
         ))
 
