@@ -1,11 +1,25 @@
-"""Chat Module (Phase 3 Target).
+"""Chat module providing multi-turn memory, field extraction, and conversational reasoning."""
 
-Responsible for:
-- Conversational state management & multi-turn dialog history.
-- Contextual intent recognition & query routing.
-- Context injection (linking retrieved facts + reasoning scores into prompt templates).
-- Citations & evidence attribution formatting.
-- Streaming responses & WebSocket / SSE support.
-"""
+from daaruka.chat.models import (
+    ChatMessage,
+    ChatSession,
+    ChatRequest,
+    ChatResponse,
+    SessionStateSummary,
+)
+from daaruka.chat.session_store import session_store, InMemorySessionStore
+from daaruka.chat.extractor import extract_site_assessment_from_text
+from daaruka.chat.turn_handler import handle_chat_turn, merge_assessment_inputs
 
-__all__ = []
+__all__ = [
+    "ChatMessage",
+    "ChatSession",
+    "ChatRequest",
+    "ChatResponse",
+    "SessionStateSummary",
+    "session_store",
+    "InMemorySessionStore",
+    "extract_site_assessment_from_text",
+    "handle_chat_turn",
+    "merge_assessment_inputs",
+]
