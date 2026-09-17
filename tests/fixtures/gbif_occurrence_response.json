@@ -1,0 +1,78 @@
+{
+  "offset": 0,
+  "limit": 100,
+  "endOfRecords": true,
+  "count": 5,
+  "results": [
+    {
+      "key": 10001,
+      "scientificName": "Panthera tigris (Linnaeus, 1758)",
+      "species": "Panthera tigris",
+      "vernacularName": "Bengal Tiger",
+      "kingdom": "Animalia",
+      "phylum": "Chordata",
+      "class": "Mammalia",
+      "order": "Carnivora",
+      "family": "Felidae",
+      "iucnRedListCategory": "EN",
+      "decimalLatitude": 28.6139,
+      "decimalLongitude": 77.2090
+    },
+    {
+      "key": 10002,
+      "scientificName": "Azadirachta indica A.Juss.",
+      "species": "Azadirachta indica",
+      "vernacularName": "Neem Tree",
+      "kingdom": "Plantae",
+      "phylum": "Tracheophyta",
+      "class": "Magnoliopsida",
+      "order": "Sapindales",
+      "family": "Meliaceae",
+      "iucnRedListCategory": "LC",
+      "decimalLatitude": 28.6145,
+      "decimalLongitude": 77.2085
+    },
+    {
+      "key": 10003,
+      "scientificName": "Ficus religiosa L.",
+      "species": "Ficus religiosa",
+      "vernacularName": "Sacred Fig",
+      "kingdom": "Plantae",
+      "phylum": "Tracheophyta",
+      "class": "Magnoliopsida",
+      "order": "Rosales",
+      "family": "Moraceae",
+      "iucnRedListCategory": "LC",
+      "decimalLatitude": 28.6120,
+      "decimalLongitude": 77.2100
+    },
+    {
+      "key": 10004,
+      "scientificName": "Gyps bengalensis (Gmelin, 1788)",
+      "species": "Gyps bengalensis",
+      "vernacularName": "White-rumped Vulture",
+      "kingdom": "Animalia",
+      "phylum": "Chordata",
+      "class": "Aves",
+      "order": "Accipitriformes",
+      "family": "Accipitridae",
+      "iucnRedListCategory": "CR",
+      "decimalLatitude": 28.6110,
+      "decimalLongitude": 77.2070
+    },
+    {
+      "key": 10005,
+      "scientificName": "Azadirachta indica A.Juss.",
+      "species": "Azadirachta indica",
+      "vernacularName": "Neem Tree",
+      "kingdom": "Plantae",
+      "phylum": "Tracheophyta",
+      "class": "Magnoliopsida",
+      "order": "Sapindales",
+      "family": "Meliaceae",
+      "iucnRedListCategory": "LC",
+      "decimalLatitude": 28.6150,
+      "decimalLongitude": 77.2095
+    }
+  ]
+}
