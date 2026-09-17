@@ -1,23 +1,28 @@
 ---
-document_title: "Climate Change 2022: Impacts, Adaptation and Vulnerability. Chapter 2: Terrestrial and Freshwater Ecosystems"
-publisher: "Intergovernmental Panel on Climate Change (IPCC AR6 WGII)"
+document_title: "IPCC AR6 WGII: Climate Change 2022: Impacts, Adaptation and Vulnerability (Chapter 2: Terrestrial and Freshwater Ecosystems)"
+publisher: "Intergovernmental Panel on Climate Change (IPCC)"
 year: 2022
 doi_or_url: "https://doi.org/10.1017/9781009325844.004"
+page: 245
 topics: ["biodiversity", "climate", "resilience", "tipping-points", "species-extinction", "ecosystems"]
 ---
 
-# Section: Climate Change Risks to Terrestrial Biodiversity and Extinction Thresholds
+# Section: Section 2.4.3 - Terrestrial Species Range Shifts and Extinction Risk Thresholds (pp. 242-250)
 
-Anthropogenic climate change has already caused substantial damages and increasingly irreversible losses in terrestrial, freshwater, and coastal ecosystems. Global warming is shifting geographical ranges, seasonal phenology, and physiological tolerances of thousands of terrestrial species toward higher elevations and poleward latitudes at an observed median velocity of 17 km per decade.
+Anthropogenic climate warming has driven observed poleward and upward elevational shifts across thousands of terrestrial species at a global median velocity of 17 km per decade poleward and 11 m per decade upward (Chapter 2 Executive Summary, p. 204).
 
-At global warming levels of 1.5°C, approximately 3% to 14% of terrestrial species assessed will face a very high risk of extinction. This risk escalates non-linearly to 9% to 18% at 2.0°C of warming, and up to 29% to 39% under a 3.0°C scenario. Endemic species restricted to mountain ranges, tropical biodiversity hotspots, and island habitats face extinction rates nearly ten times higher than widespread continental species.
+As detailed in Table 2.5 (p. 245) and Cross-Chapter Box BIO:
+- Under global warming of 1.5°C above pre-industrial levels, an estimated 3% to 14% of assessed terrestrial species face a very high risk of extinction.
+- At 2.0°C warming, the extinction risk increases non-linearly to 9% to 18% of terrestrial species.
+- Under high-emissions scenarios (3.0°C to 4.0°C warming), projected extinction risk escalates to 29% to 39% across surveyed biomes.
+- Endemic species in biodiversity hotspots (such as tropical montane cloud forests, Cape Floristic Region, and island systems) face extinction risks 10-fold higher than widespread continental generalists.
 
-# Section: Biome Shifts, Forest Dieback and Ecological Tipping Points
+# Section: Section 2.5.2 - Biome Dieback, Deforestation Feedbacks and Amazon Tipping Points (pp. 268-274)
 
-Climate-induced drought frequency and compound heat extremes are pushing biomes toward structural tipping points. In tropical rainforest systems like the Amazon basin, the combined pressures of localized deforestation (surpassing 20-25% regional forest clearance) and climate-driven dry season elongation threaten to trigger a transition toward degraded dry savanna or scrub vegetation states, converting a major global carbon sink into a net carbon source.
+Compound climate extremes and drought frequency are eroding ecosystem resilience, driving biomes toward critical stability thresholds (Section 2.5.2, p. 270). In the Amazon basin, the synergistic interaction between regional deforestation exceeding 20-25% forest loss and climate-induced dry season elongation threatens to trigger widespread forest dieback, converting moist tropical evergreen forest into degraded savanna-like systems and shifting the region from a net carbon sink to a net carbon source.
 
-Similarly, in boreal and temperate forest ecosystems, increased wildfire severity, insect outbreaks (such as bark beetle infestations), and moisture deficits are accelerating tree mortality. Ecosystem resilience depends critically on preserving intact ecological corridors and continuous forest canopies that moderate internal microclimates and maintain hydrologic recycling.
+In temperate and boreal forests, climate-induced moisture deficits and warmer winters have accelerated tree mortality through unprecedented bark beetle outbreaks (Dendroctonus spp.) and increased megafire frequency (Section 2.5.3, p. 275).
 
-# Section: Nature-Based Solutions and Ecosystem-Based Adaptation
+# Section: Section 2.6.3 - Ecosystem-Based Adaptation and Peatland Restoration (pp. 290-298)
 
-Ecosystem-based adaptation (EbA) actions—including the protection and restoration of peatlands, primary forests, grasslands, and riparian buffer zones—deliver substantial co-benefits for biodiversity conservation and climate mitigation. Restoring peatland hydrologic integrity halts carbon oxidation and prevents catastrophic underground fires, while maintaining genetic and species diversity increases functional redundancy and long-term ecosystem stability under climate stress.
+Ecosystem-based adaptation (EbA)—including re-wetting drained peatlands, restoring native riparian corridors, and preserving continuous forest canopies—delivers quantified co-benefits for biodiversity preservation and climate mitigation (Section 2.6.3, p. 292). Intact peatlands hold more carbon per hectare than any other terrestrial ecosystem; re-wetting drained peat soils halts aerobic carbon oxidation, reduces wildfire vulnerability, and restores habitat for specialized wetland taxa.
