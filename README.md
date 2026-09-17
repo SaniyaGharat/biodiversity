@@ -27,7 +27,7 @@ The platform is designed around four decoupled, modular subsystems:
 │   ┌────────────────────────────────────────────────────────────────────────────────┐   │
 │   │                              API Layer (`api/v1/`)                             │   │
 │   │   - `GET  /health` & `GET /api/v1/health`                                      │   │
-│   │   - `POST /api/v1/knowledge/search` (Grounded semantic & topic retrieval)      │   │
+│   │   - `GET  /api/v1/knowledge/search` (Grounded semantic & topic retrieval)      │   │
 │   │   - `POST /api/v1/chat` (Conversational multi-turn slot filling & reasoning)   │   │
 │   │   - `POST /api/v1/assess` (Structured JSON input & geo-enrichment evaluation)  │   │
 │   └───────────────────────┬────────────────────────────────┬───────────────────────┘   │
@@ -181,53 +181,59 @@ Test coverage includes:
 curl -X GET http://localhost:8000/health
 ```
 
-**Example Response (`200 OK`)**:
+**Actual Live Response (`200 OK`)**:
 ```json
 {
   "status": "healthy",
+  "service": "daaruka-backend",
   "version": "0.1.0",
-  "timestamp": "2026-09-17T22:45:00.000000",
-  "services": {
-    "api": "operational",
-    "vector_store": "ready",
-    "connectors": "ready"
-  }
+  "timestamp": "2026-09-17T17:23:14.308907+00:00",
+  "environment": "production"
 }
 ```
 
 ---
 
 ### 2. Semantic Knowledge Search
-`POST /api/v1/knowledge/search`
+`GET /api/v1/knowledge/search`
 
-Search the grounded knowledge base with optional topic filtering (`soil`, `climate`, `restoration`, `policy`).
+Search the grounded knowledge base with optional topic tags filtering (`soil`, `carbon`, `restoration`, `policy`, `climate`).
 
 **Example Request**:
 ```bash
-curl -X POST http://localhost:8000/api/v1/knowledge/search \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "soil organic carbon cover cropping sequestration rate",
-    "n_results": 2,
-    "topic": "soil"
-  }'
+curl -X GET "http://localhost:8000/api/v1/knowledge/search?query=soil+organic+carbon+cover+cropping&top_k=1&tags=soil"
 ```
 
-**Example Response (`200 OK`)**:
+**Actual Live Response (`200 OK`)**:
 ```json
-[
-  {
-    "chunk_id": "4d894bde-2aef-5c18-9038-33512302261e",
-    "document_title": "Recarbonizing Global Soils: A Technical Manual of Recommended Management Practices (Vol 3)",
-    "page_number": 21,
-    "publisher": "Food and Agriculture Organization of the United Nations (FAO)",
-    "year": 2021,
-    "text": "Crop rotation with cover crops can increase soil organic carbon...",
-    "topics": ["soil", "carbon", "cover-cropping"],
-    "score": 0.88,
-    "url_or_doi": "https://doi.org/10.4060/cb6595en"
-  }
-]
+{
+  "query": "soil organic carbon cover cropping",
+  "total_results": 1,
+  "results": [
+    {
+      "chunk_id": "4d894bde-2aef-5c18-9038-33512302261e",
+      "content": "VOLUME 3: CROPLAND, GRASSLAND, INTEGRATED SYSTEMS AND FARMING APPROACHES  PRACTICES OVERVIEW 3 \n2. Range of applicability Cover cropping (CC) can be applied worldwide, but there is not a cover crop that fits every farming situation and potential benefits vary with climate, soil type and plant species. In detail, CCs can better fit in humid and subhumid regions than in semiarid regions where precipitation is limited (Unger and Vigil, 1998). The possible competition of CCs for available soil water in semiarid regions can limit the adoption of the practice (Unger and Vigil, 1998; Nielsen et al., 2015). A different approach to agricultural management is required for arable and woody crops.  \n3. Impact on soil organic carbon stocks The C storage",
+      "similarity_score": 0.7241,
+      "citation": {
+        "document_title": "Recarbonizing Global Soils: A Technical Manual of Recommended Management Practices (Vol 3: Cropland & Grassland Systems)",
+        "publisher": "Food and Agriculture Organization of the United Nations (FAO)",
+        "year": 2021,
+        "section_title": "Page 21",
+        "page": 21,
+        "topics": [
+          "soil",
+          "carbon",
+          "cover-cropping",
+          "agriculture",
+          "soc",
+          "tillage",
+          "soil-organic-carbon"
+        ],
+        "url_or_doi": "https://doi.org/10.4060/cb6595en"
+      }
+    }
+  ]
+}
 ```
 
 ---
@@ -237,29 +243,191 @@ curl -X POST http://localhost:8000/api/v1/knowledge/search \
 
 Handles free-text input, extracts ecological parameters, maintains multi-turn session state, asks non-repeating clarifying questions for missing data, and generates grounded recommendations.
 
-**Example Request (Turn 1 - Partial Input)**:
+#### Turn 1: Partial Input (Triggers Non-Repeating Clarifying Question)
+**Example Request**:
 ```bash
 curl -X POST http://localhost:8000/api/v1/chat \
   -H "Content-Type: application/json" \
   -d '{
-    "session_id": "field_demo_01",
-    "message": "I manage 50 hectares of cropland with sandy soil and 0.8% organic carbon in a semi-arid zone."
+    "session_id": "demo_turn1",
+    "message": "I have a 20-hectare wheat farm in semi-arid Spain with 0.8% soil organic carbon."
   }'
 ```
 
-**Example Response (`200 OK`)**:
+**Actual Live Response (`200 OK`)**:
 ```json
 {
-  "session_id": "field_demo_01",
-  "response": "### 🌿 Ecological Site Assessment & Recommendations\n\n**Data Completeness:** 60.0%\n**Overall Confidence:** Medium\n\n#### 🌾 Recommended Interventions\n1. **High-Residue Cover Cropping & Organic Amendment**\n   - **Rationale:** Addresses severe SOC deficit (0.8%) in semi-arid cropland.\n   - **Evidence:** *FAO Recarbonizing Global Soils Vol 3 (p. 21)*\n\n#### ❓ Clarifying Questions for Higher Confidence\n- What is the typical annual rainfall (mm) or moisture regime at the site?",
-  "extracted_parameters": {
-    "land_use": "cropland",
-    "soc_percent": 0.8,
-    "region": "semi-arid"
+  "session_id": "demo_turn1",
+  "response_text": "What is the typical climate and precipitation pattern on your land (e.g. semi-arid with low/erratic rainfall, seasonal drought, or temperature extremes)?",
+  "session_state_summary": {
+    "session_id": "demo_turn1",
+    "accumulated_fields": {
+      "soc_pct": 0.8,
+      "current_land_use": "cropland / arable agriculture",
+      "biome": "semi-arid"
+    },
+    "data_completeness_score": 0.6,
+    "missing_categories": [
+      "climate",
+      "human_impact"
+    ],
+    "present_categories": [
+      "soil",
+      "land_use",
+      "biodiversity"
+    ],
+    "total_messages": 1
   },
-  "missing_parameters": ["rainfall_mm", "latitude/longitude"],
-  "clarifying_question": "What is the typical annual rainfall (mm) or moisture regime at the site?",
-  "data_completeness_score": 0.6
+  "is_asking_clarification": true,
+  "recommendations": null,
+  "extracted_in_this_turn": {
+    "soc_pct": 0.8,
+    "current_land_use": "cropland / arable agriculture",
+    "biome": "semi-arid"
+  }
+}
+```
+
+#### Turn 2: Grounded Recommendation Generation
+**Example Request**:
+```bash
+curl -X POST http://localhost:8000/api/v1/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "readme_demo_session",
+    "message": "I manage 50 hectares of cropland in a semi-arid zone with sandy soil and 0.8% organic carbon."
+  }'
+```
+
+**Actual Live Response (`200 OK`)**:
+```json
+{
+  "session_id": "readme_demo_session",
+  "response_text": "Based on the multi-variable ecological profile of your site, here are targeted, scientifically grounded recommendations:\n\n**Overall Assessment Confidence**: `HIGH`\n*Overall assessment confidence is rated HIGH based on 3 peer-reviewed action(s) with verified page-level citations from FAO/IPCC/CBD literature and 2 missing ecological pillar(s).*\n\n### 1. Integrate Multi-Species Agroforestry Hedgerows & Field Margins\n**Ecological Mechanism**: Combining woody perennials with annual crops establishes structural diversity that buffers microclimates against heat extremes, reduces wind-driven evapotranspiration, and creates continuous ecological corridors for beneficial pollinator and predator taxa across monoculture landscapes.\n\n**Cross-Variable Interactions & Synergies**:\n- *Vegetation Structural Diversity <-> Microclimate Thermal Buffering*\n- *Landscape Heterogeneity <-> Pollinator & Predator Abundance*\n- *Tree Root Biomass <-> Deep Soil Carbon Stabilization*\n\n**Impacted Metrics**: Field Evaporative Water Loss, Soil Organic Carbon in subsoil layers, Species Richness Proxy & Pollinator Density, Ecological Connectivity (CBD Target 10)\n**Expected Outcome**: Increases carbon storage through combined aboveground and belowground tree biomass, enhances structural landscape heterogeneity, and advances biodiversity-friendly management.\n**Implementation Horizon**: `medium-term` | **Scientific Confidence**: `HIGH`\n\n**Scientific Evidence & Citations**:\n- [Food and Agriculture Organization of the United Nations (FAO), 2021] *Recarbonizing Global Soils: A Technical Manual of Recommended Management Practices (Vol 3: Cropland & Grassland Systems)* (p. 590) (https://doi.org/10.4060/cb6595en)\n- [Convention on Biological Diversity (CBD / UNEP), 2022] *CBD COP15 Decision 15/4: Kunming-Montreal Global Biodiversity Framework* (p. 4) (https://www.cbd.int/doc/decisions/cop-15/cop-15-dec-04-en.pdf)\n\n### 2. Implement Seasonal Legume Cover Cropping Tailored to Semiarid Moisture Constraints\n**Ecological Mechanism**: Introducing drought-adapted leguminous cover crops fixes atmospheric nitrogen to enhance microbial C:N balance and build topsoil organic carbon. In semiarid regions where precipitation is limited, careful selection of cover crop species and growth windows avoids soil water competition with primary crops (Unger and Vigil, 1998).\n\n**Cross-Variable Interactions & Synergies**:\n- *Legume Nitrogen Fixation <-> Soil Microbial Carbon Stabilization*\n- *Cover Crop Water Demand <-> Semiarid Available Soil Moisture*\n- *Crop Diversification <-> Soil Biota Redundancy*\n\n**Impacted Metrics**: Topsoil Organic Carbon Stock (SOC), Available Soil Moisture Retention, Soil Microbial Parameters\n**Expected Outcome**: Enhances soil organic carbon stocks while managing potential soil water competition in semiarid environments, improving water infiltration and aggregate stability.\n**Implementation Horizon**: `short-term` | **Scientific Confidence**: `HIGH`\n\n**Scientific Evidence & Citations**:\n- [Food and Agriculture Organization of the United Nations (FAO), 2021] *Recarbonizing Global Soils: A Technical Manual of Recommended Management Practices (Vol 3: Cropland & Grassland Systems)* (p. 21) (https://doi.org/10.4060/cb6595en)\n\n### 3. Transition to Conservation Tillage & Residue Retention Management\n**Ecological Mechanism**: Eliminating or reducing intensive tillage avoids continuous soil aggregate disruption in topsoil layers, reducing oxidative carbon losses while increasing water infiltration and reducing soil erosion.\n\n**Cross-Variable Interactions & Synergies**:\n- *Tillage Reduction <-> Soil Organic Carbon Accumulation*\n- *Soil Structure Protection <-> Infiltration Capacity*\n\n**Impacted Metrics**: Topsoil Organic Carbon Retention, Soil Macroaggregate Stability, Surface Evaporative Water Loss\n**Expected Outcome**: Stabilizes topsoil organic carbon and improves soil structure retention compared to conventional inversion plowing.\n**Implementation Horizon**: `short-term` | **Scientific Confidence**: `HIGH`\n\n**Scientific Evidence & Citations**:\n- [Food and Agriculture Organization of the United Nations (FAO), 2021] *Recarbonizing Global Soils: A Technical Manual of Recommended Management Practices (Vol 3: Cropland & Grassland Systems)* (p. 590) (https://doi.org/10.4060/cb6595en)\n\n---\n*These recommendations are grounded in peer-reviewed protocols from FAO, IPCC AR6 WGII, and the CBD Kunming-Montreal Framework.*",
+  "session_state_summary": {
+    "session_id": "readme_demo_session",
+    "accumulated_fields": {
+      "soc_pct": 0.8,
+      "current_land_use": "cropland / arable agriculture",
+      "biome": "semi-arid"
+    },
+    "data_completeness_score": 0.6,
+    "missing_categories": [
+      "climate",
+      "human_impact"
+    ],
+    "present_categories": [
+      "soil",
+      "land_use",
+      "biodiversity"
+    ],
+    "total_messages": 1
+  },
+  "is_asking_clarification": false,
+  "recommendations": [
+    {
+      "action": "Integrate Multi-Species Agroforestry Hedgerows & Field Margins",
+      "mechanism": "Combining woody perennials with annual crops establishes structural diversity that buffers microclimates against heat extremes, reduces wind-driven evapotranspiration, and creates continuous ecological corridors for beneficial pollinator and predator taxa across monoculture landscapes.",
+      "variable_interactions": [
+        "Vegetation Structural Diversity <-> Microclimate Thermal Buffering",
+        "Landscape Heterogeneity <-> Pollinator & Predator Abundance",
+        "Tree Root Biomass <-> Deep Soil Carbon Stabilization"
+      ],
+      "impacted_metrics": [
+        "Field Evaporative Water Loss",
+        "Soil Organic Carbon in subsoil layers",
+        "Species Richness Proxy & Pollinator Density",
+        "Ecological Connectivity (CBD Target 10)"
+      ],
+      "estimated_effect": "Increases carbon storage through combined aboveground and belowground tree biomass, enhances structural landscape heterogeneity, and advances biodiversity-friendly management.",
+      "time_horizon": "medium-term",
+      "confidence": "high",
+      "sources": [
+        {
+          "chunk_id": "3721df08-2bb9-5fe4-ba72-84120b145bd8",
+          "document_title": "Recarbonizing Global Soils: A Technical Manual of Recommended Management Practices (Vol 3: Cropland & Grassland Systems)",
+          "publisher": "Food and Agriculture Organization of the United Nations (FAO)",
+          "year": 2021,
+          "section_title": "Page 590",
+          "page": 590,
+          "url_or_doi": "https://doi.org/10.4060/cb6595en",
+          "citation": "[Food and Agriculture Organization of the United Nations (FAO), 2021] Recarbonizing Global Soils: A Technical Manual of Recommended Management Practices (Vol 3: Cropland & Grassland Systems) (p. 590) [https://doi.org/10.4060/cb6595en]"
+        },
+        {
+          "chunk_id": "09afa2f6-2e2a-5d0a-9b38-9b45b3cd0794",
+          "document_title": "CBD COP15 Decision 15/4: Kunming-Montreal Global Biodiversity Framework",
+          "publisher": "Convention on Biological Diversity (CBD / UNEP)",
+          "year": 2022,
+          "section_title": "Page 4",
+          "page": 4,
+          "url_or_doi": "https://www.cbd.int/doc/decisions/cop-15/cop-15-dec-04-en.pdf",
+          "citation": "[Convention on Biological Diversity (CBD / UNEP), 2022] CBD COP15 Decision 15/4: Kunming-Montreal Global Biodiversity Framework (p. 4) [https://www.cbd.int/doc/decisions/cop-15/cop-15-dec-04-en.pdf]"
+        }
+      ]
+    },
+    {
+      "action": "Implement Seasonal Legume Cover Cropping Tailored to Semiarid Moisture Constraints",
+      "mechanism": "Introducing drought-adapted leguminous cover crops fixes atmospheric nitrogen to enhance microbial C:N balance and build topsoil organic carbon. In semiarid regions where precipitation is limited, careful selection of cover crop species and growth windows avoids soil water competition with primary crops (Unger and Vigil, 1998).",
+      "variable_interactions": [
+        "Legume Nitrogen Fixation <-> Soil Microbial Carbon Stabilization",
+        "Cover Crop Water Demand <-> Semiarid Available Soil Moisture",
+        "Crop Diversification <-> Soil Biota Redundancy"
+      ],
+      "impacted_metrics": [
+        "Topsoil Organic Carbon Stock (SOC)",
+        "Available Soil Moisture Retention",
+        "Soil Microbial Parameters"
+      ],
+      "estimated_effect": "Enhances soil organic carbon stocks while managing potential soil water competition in semiarid environments, improving water infiltration and aggregate stability.",
+      "time_horizon": "short-term",
+      "confidence": "high",
+      "sources": [
+        {
+          "chunk_id": "4d894bde-2aef-5c18-9038-33512302261e",
+          "document_title": "Recarbonizing Global Soils: A Technical Manual of Recommended Management Practices (Vol 3: Cropland & Grassland Systems)",
+          "publisher": "Food and Agriculture Organization of the United Nations (FAO)",
+          "year": 2021,
+          "section_title": "Page 21",
+          "page": 21,
+          "url_or_doi": "https://doi.org/10.4060/cb6595en",
+          "citation": "[Food and Agriculture Organization of the United Nations (FAO), 2021] Recarbonizing Global Soils: A Technical Manual of Recommended Management Practices (Vol 3: Cropland & Grassland Systems) (p. 21) [https://doi.org/10.4060/cb6595en]"
+        }
+      ]
+    },
+    {
+      "action": "Transition to Conservation Tillage & Residue Retention Management",
+      "mechanism": "Eliminating or reducing intensive tillage avoids continuous soil aggregate disruption in topsoil layers, reducing oxidative carbon losses while increasing water infiltration and reducing soil erosion.",
+      "variable_interactions": [
+        "Tillage Reduction <-> Soil Organic Carbon Accumulation",
+        "Soil Structure Protection <-> Infiltration Capacity"
+      ],
+      "impacted_metrics": [
+        "Topsoil Organic Carbon Retention",
+        "Soil Macroaggregate Stability",
+        "Surface Evaporative Water Loss"
+      ],
+      "estimated_effect": "Stabilizes topsoil organic carbon and improves soil structure retention compared to conventional inversion plowing.",
+      "time_horizon": "short-term",
+      "confidence": "high",
+      "sources": [
+        {
+          "chunk_id": "3721df08-2bb9-5fe4-ba72-84120b145bd8",
+          "document_title": "Recarbonizing Global Soils: A Technical Manual of Recommended Management Practices (Vol 3: Cropland & Grassland Systems)",
+          "publisher": "Food and Agriculture Organization of the United Nations (FAO)",
+          "year": 2021,
+          "section_title": "Page 590",
+          "page": 590,
+          "url_or_doi": "https://doi.org/10.4060/cb6595en",
+          "citation": "[Food and Agriculture Organization of the United Nations (FAO), 2021] Recarbonizing Global Soils: A Technical Manual of Recommended Management Practices (Vol 3: Cropland & Grassland Systems) (p. 590) [https://doi.org/10.4060/cb6595en]"
+        }
+      ]
+    }
+  ],
+  "extracted_in_this_turn": {
+    "soc_pct": 0.8,
+    "current_land_use": "cropland / arable agriculture",
+    "biome": "semi-arid"
+  }
 }
 ```
 
@@ -270,7 +438,8 @@ curl -X POST http://localhost:8000/api/v1/chat \
 
 Programmatic evaluation endpoint accepting structured `SiteAssessmentInput` JSON. Automatically queries **SoilGrids** and **GBIF** when coordinates (`latitude`, `longitude`) are provided. Supports `?format=json` (default) and `?format=text`.
 
-**Example Request (JSON format with Coordinates)**:
+#### JSON Format:
+**Example Request**:
 ```bash
 curl -X POST "http://localhost:8000/api/v1/assess?format=json" \
   -H "Content-Type: application/json" \
@@ -278,56 +447,108 @@ curl -X POST "http://localhost:8000/api/v1/assess?format=json" \
     "land_use": "cropland",
     "soc_percent": 0.8,
     "rainfall_mm": 350.0,
-    "region": "semi-arid",
-    "latitude": -1.286389,
-    "longitude": 36.817223
+    "region": "semi-arid"
   }'
 ```
 
-**Example Response (`200 OK`)**:
+**Actual Live Response (`200 OK`)**:
 ```json
 {
-  "gap_analysis": {
-    "missing_fields": [],
-    "completeness_score": 1.0,
-    "suggested_questions": []
+  "site_summary": {
+    "region": "semi-arid"
   },
-  "overall_confidence": "high",
-  "confidence_rationale": "High data completeness (100.0%) with comprehensive multi-variable observations.",
+  "gap_analysis": {
+    "missing_categories": [
+      "soil",
+      "land_use",
+      "climate",
+      "human_impact"
+    ],
+    "present_categories": [
+      "biodiversity"
+    ],
+    "data_completeness_score": 0.2,
+    "suggested_clarifications": [
+      "What is your current topsoil organic carbon (SOC%), soil pH, or baseline moisture level?",
+      "What is the current land use or cropping system (e.g. continuous monoculture, crop rotation, pasture)?",
+      "What are your typical annual precipitation and temperature patterns (e.g. semi-arid with <400mm rainfall, seasonal drought)?",
+      "What current land management practices are applied (e.g. intensive moldboard plowing vs no-till, synthetic inputs vs organic)?"
+    ]
+  },
+  "enriched_geo_data": null,
+  "data_provenance": {
+    "region": "user-provided"
+  },
+  "overall_confidence": "medium",
+  "confidence_rationale": "Overall assessment confidence is rated MEDIUM based on 2 peer-reviewed action(s) with verified page-level citations from FAO/IPCC/CBD literature and 4 missing ecological pillar(s).",
+  "retrieved_evidence_count": 8,
+  "cross_variable_insights": [],
   "recommendations": [
     {
-      "title": "High-Residue Cover Cropping & Organic Residue Retention",
-      "target_variable": "Soil Organic Carbon & Moisture Retention",
-      "action": "Integrate drought-tolerant legume cover crops during fallow periods and maintain >30% surface crop residue.",
-      "estimated_effect": "Increases SOC sequestration by up to 0.32–0.55 t C/ha/yr and improves moisture retention.",
-      "interacting_variables": ["soc_percent (0.8%)", "rainfall_mm (350.0mm)", "land_use (cropland)"],
+      "action": "Integrate Multi-Species Agroforestry Hedgerows & Field Margins",
+      "mechanism": "Combining woody perennials with annual crops establishes structural diversity that buffers microclimates against heat extremes, reduces wind-driven evapotranspiration, and creates continuous ecological corridors for beneficial pollinator and predator taxa across monoculture landscapes.",
+      "variable_interactions": [
+        "Vegetation Structural Diversity <-> Microclimate Thermal Buffering",
+        "Landscape Heterogeneity <-> Pollinator & Predator Abundance",
+        "Tree Root Biomass <-> Deep Soil Carbon Stabilization"
+      ],
+      "impacted_metrics": [
+        "Field Evaporative Water Loss",
+        "Soil Organic Carbon in subsoil layers",
+        "Species Richness Proxy & Pollinator Density",
+        "Ecological Connectivity (CBD Target 10)"
+      ],
+      "estimated_effect": "Increases carbon storage through combined aboveground and belowground tree biomass, enhances structural landscape heterogeneity, and advances biodiversity-friendly management.",
+      "time_horizon": "medium-term",
       "confidence": "high",
       "sources": [
         {
+          "chunk_id": "09afa2f6-2e2a-5d0a-9b38-9b45b3cd0794",
+          "document_title": "CBD COP15 Decision 15/4: Kunming-Montreal Global Biodiversity Framework",
+          "publisher": "Convention on Biological Diversity (CBD / UNEP)",
+          "year": 2022,
+          "section_title": "Page 4",
+          "page": 4,
+          "url_or_doi": "https://www.cbd.int/doc/decisions/cop-15/cop-15-dec-04-en.pdf",
+          "citation": "[Convention on Biological Diversity (CBD / UNEP), 2022] CBD COP15 Decision 15/4: Kunming-Montreal Global Biodiversity Framework (p. 4) [https://www.cbd.int/doc/decisions/cop-15/cop-15-dec-04-en.pdf]"
+        }
+      ]
+    },
+    {
+      "action": "Implement Seasonal Legume Cover Cropping Tailored to Semiarid Moisture Constraints",
+      "mechanism": "Introducing drought-adapted leguminous cover crops fixes atmospheric nitrogen to enhance microbial C:N balance and build topsoil organic carbon. In semiarid regions where precipitation is limited, careful selection of cover crop species and growth windows avoids soil water competition with primary crops (Unger and Vigil, 1998).",
+      "variable_interactions": [
+        "Legume Nitrogen Fixation <-> Soil Microbial Carbon Stabilization",
+        "Cover Crop Water Demand <-> Semiarid Available Soil Moisture",
+        "Crop Diversification <-> Soil Biota Redundancy"
+      ],
+      "impacted_metrics": [
+        "Topsoil Organic Carbon Stock (SOC)",
+        "Available Soil Moisture Retention",
+        "Soil Microbial Parameters"
+      ],
+      "estimated_effect": "Enhances soil organic carbon stocks while managing potential soil water competition in semiarid environments, improving water infiltration and aggregate stability.",
+      "time_horizon": "short-term",
+      "confidence": "high",
+      "sources": [
+        {
+          "chunk_id": "4d894bde-2aef-5c18-9038-33512302261e",
           "document_title": "Recarbonizing Global Soils: A Technical Manual of Recommended Management Practices (Vol 3: Cropland & Grassland Systems)",
-          "page_number": 21,
           "publisher": "Food and Agriculture Organization of the United Nations (FAO)",
           "year": 2021,
-          "chunk_id": "4d894bde-2aef-5c18-9038-33512302261e",
-          "url_or_doi": "https://doi.org/10.4060/cb6595en"
+          "section_title": "Page 21",
+          "page": 21,
+          "url_or_doi": "https://doi.org/10.4060/cb6595en",
+          "citation": "[Food and Agriculture Organization of the United Nations (FAO), 2021] Recarbonizing Global Soils: A Technical Manual of Recommended Management Practices (Vol 3: Cropland & Grassland Systems) (p. 21) [https://doi.org/10.4060/cb6595en]"
         }
       ]
     }
-  ],
-  "species_richness_proxy": 142,
-  "evaluated_inputs": {
-    "land_use": "cropland",
-    "soc_percent": 0.8,
-    "ph": 6.2,
-    "rainfall_mm": 350.0,
-    "region": "semi-arid",
-    "latitude": -1.286389,
-    "longitude": 36.817223
-  }
+  ]
 }
 ```
 
-**Example Request (`?format=text`)**:
+#### Human-Readable Text Format (`?format=text`):
+**Example Request**:
 ```bash
 curl -X POST "http://localhost:8000/api/v1/assess?format=text" \
   -H "Content-Type: application/json" \
@@ -337,6 +558,47 @@ curl -X POST "http://localhost:8000/api/v1/assess?format=text" \
     "rainfall_mm": 350.0,
     "region": "semi-arid"
   }'
+```
+
+**Actual Live Response (`200 OK`)**:
+```markdown
+Based on the multi-variable ecological profile of your site, here are targeted, scientifically grounded recommendations:
+
+**Overall Assessment Confidence**: `MEDIUM`
+*Overall assessment confidence is rated MEDIUM based on 2 peer-reviewed action(s) with verified page-level citations from FAO/IPCC/CBD literature and 4 missing ecological pillar(s).*
+
+### 1. Integrate Multi-Species Agroforestry Hedgerows & Field Margins
+**Ecological Mechanism**: Combining woody perennials with annual crops establishes structural diversity that buffers microclimates against heat extremes, reduces wind-driven evapotranspiration, and creates continuous ecological corridors for beneficial pollinator and predator taxa across monoculture landscapes.
+
+**Cross-Variable Interactions & Synergies**:
+- *Vegetation Structural Diversity <-> Microclimate Thermal Buffering*
+- *Landscape Heterogeneity <-> Pollinator & Predator Abundance*
+- *Tree Root Biomass <-> Deep Soil Carbon Stabilization*
+
+**Impacted Metrics**: Field Evaporative Water Loss, Soil Organic Carbon in subsoil layers, Species Richness Proxy & Pollinator Density, Ecological Connectivity (CBD Target 10)
+**Expected Outcome**: Increases carbon storage through combined aboveground and belowground tree biomass, enhances structural landscape heterogeneity, and advances biodiversity-friendly management.
+**Implementation Horizon**: `medium-term` | **Scientific Confidence**: `HIGH`
+
+**Scientific Evidence & Citations**:
+- [Convention on Biological Diversity (CBD / UNEP), 2022] *CBD COP15 Decision 15/4: Kunming-Montreal Global Biodiversity Framework* (p. 4) (https://www.cbd.int/doc/decisions/cop-15/cop-15-dec-04-en.pdf)
+
+### 2. Implement Seasonal Legume Cover Cropping Tailored to Semiarid Moisture Constraints
+**Ecological Mechanism**: Introducing drought-adapted leguminous cover crops fixes atmospheric nitrogen to enhance microbial C:N balance and build topsoil organic carbon. In semiarid regions where precipitation is limited, careful selection of cover crop species and growth windows avoids soil water competition with primary crops (Unger and Vigil, 1998).
+
+**Cross-Variable Interactions & Synergies**:
+- *Legume Nitrogen Fixation <-> Soil Microbial Carbon Stabilization*
+- *Cover Crop Water Demand <-> Semiarid Available Soil Moisture*
+- *Crop Diversification <-> Soil Biota Redundancy*
+
+**Impacted Metrics**: Topsoil Organic Carbon Stock (SOC), Available Soil Moisture Retention, Soil Microbial Parameters
+**Expected Outcome**: Enhances soil organic carbon stocks while managing potential soil water competition in semiarid environments, improving water infiltration and aggregate stability.
+**Implementation Horizon**: `short-term` | **Scientific Confidence**: `HIGH`
+
+**Scientific Evidence & Citations**:
+- [Food and Agriculture Organization of the United Nations (FAO), 2021] *Recarbonizing Global Soils: A Technical Manual of Recommended Management Practices (Vol 3: Cropland & Grassland Systems)* (p. 21) (https://doi.org/10.4060/cb6595en)
+
+---
+*These recommendations are grounded in peer-reviewed protocols from FAO, IPCC AR6 WGII, and the CBD Kunming-Montreal Framework.*
 ```
 
 ---
