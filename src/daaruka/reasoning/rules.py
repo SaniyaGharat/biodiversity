@@ -27,35 +27,77 @@ def generate_targeted_knowledge_queries(assessment: SiteAssessmentInput) -> List
         for val in (assessment.tillage_practice,)
     )
 
-    # 1. Cover Cropping & Water Dynamics Query
+    is_tropical = any(
+        "tropical" in str(val).lower() or "humid" in str(val).lower() or "rainforest" in str(val).lower()
+        for val in (assessment.rainfall_pattern, assessment.biome, assessment.current_land_use)
+    )
+
+    is_deforestation = any(
+        "deforest" in str(val).lower() or "clear" in str(val).lower() or "buffer" in str(val).lower() or "logging" in str(val).lower()
+        for val in (assessment.current_land_use, assessment.management_goals, assessment.cropping_pattern)
+    )
+
+    is_grassland = any(
+        "grassland" in str(val).lower() or "pasture" in str(val).lower() or "rangeland" in str(val).lower() or "grazing" in str(val).lower()
+        for val in (assessment.biome, assessment.current_land_use, assessment.cropping_pattern)
+    )
+
+    is_overgrazing = any(
+        "overgraz" in str(val).lower() or "intensive grazing" in str(val).lower() or "stocking" in str(val).lower() or "pasture" in str(val).lower()
+        for val in (assessment.current_land_use, assessment.management_goals, assessment.tillage_practice)
+    )
+
+    # 1. Tropical Deforestation & Forest Buffer Restoration Query
+    if is_tropical or is_deforestation:
+        queries.append((
+            "tropical deforestation forest restoration biodiversity carbon buffer protected areas high-carbon ecosystems",
+            ["biodiversity-targets", "climate", "forest"],
+        ))
+        queries.append((
+            "agroforestry tree biomass carbon sequestration biodiversity corridors",
+            ["agriculture", "carbon", "soil"],
+        ))
+
+    # 2. Grassland Grazing & Rangeland Management Query
+    if is_grassland or is_overgrazing:
+        queries.append((
+            "grassland grazing pasture stocking density soil carbon degradation perennial legumes",
+            ["soil", "carbon", "grassland"],
+        ))
+        queries.append((
+            "pasture production nitrogen-fixing species grassland diversification soil conservation",
+            ["soil", "agriculture"],
+        ))
+
+    # 3. Cover Cropping & Water Dynamics Query (Cropland / Semi-Arid)
     if is_semi_arid and (is_low_soc or is_monoculture):
         queries.append((
             "cover cropping soil organic carbon semi arid water competition agroecological",
             ["soil", "carbon", "cover-cropping"],
         ))
-    else:
+    elif not is_grassland and not is_tropical:
         queries.append((
             "cover cropping organic carbon sequestration rates",
             ["soil", "carbon"],
         ))
 
-    # 2. Agroforestry, Intercropping & Microclimate Query
-    if is_monoculture or is_semi_arid:
+    # 4. Agroforestry, Intercropping & Microclimate Query
+    if (is_monoculture or is_semi_arid) and not (is_tropical or is_deforestation):
         queries.append((
             "agroforestry intercropping soil carbon moisture retention crop diversification",
             ["agriculture", "carbon", "soil"],
         ))
 
-    # 3. Conservation Tillage & Aggregate Stability Query
-    if is_intensive_tillage or is_low_soc:
+    # 5. Conservation Tillage & Aggregate Stability Query
+    if is_intensive_tillage or (is_low_soc and not is_grassland):
         queries.append((
             "conservation tillage zero-till residue retention soil organic carbon macroaggregates",
             ["soil", "tillage", "carbon"],
         ))
 
-    # 4. Biodiversity Restoration & Ecosystem Resilience Query
+    # 6. Biodiversity Restoration & Ecosystem Resilience Policy Query
     queries.append((
-        "ecosystem restoration sustainable agriculture biodiversity connectivity target",
+        "ecosystem restoration sustainable agriculture biodiversity connectivity target Kunming Montreal",
         ["policy", "restoration", "biodiversity-targets"],
     ))
 
@@ -90,6 +132,26 @@ def identify_cross_variable_insights(assessment: SiteAssessmentInput) -> List[st
         insights.append(
             "Management & Soil Aggregate Disruption: Intensive mechanical tillage physically fractures soil macroaggregates, "
             "exposing previously protected particulate organic carbon to rapid microbial oxidation and evaporative moisture loss."
+        )
+
+    # Interaction: Tropical Deforestation <-> High-Carbon Biomass Loss <-> Buffer Fragmentation
+    if any(
+        "tropical" in str(val).lower() or "humid" in str(val).lower() or "deforest" in str(val).lower()
+        for val in (assessment.rainfall_pattern, assessment.biome, assessment.current_land_use)
+    ):
+        insights.append(
+            "Tropical Carbon-Biodiversity Nexus: Agricultural clearing of primary tropical forest causes immediate loss "
+            "of high-carbon biomass and disrupts structural buffer zones, converting protected forest margins into net carbon sources (IPCC AR6 WGII Ch 2)."
+        )
+
+    # Interaction: Grassland Overgrazing <-> Pasture Biomass & Carbon Dynamics
+    if any(
+        "grassland" in str(val).lower() or "pasture" in str(val).lower() or "grazing" in str(val).lower()
+        for val in (assessment.biome, assessment.current_land_use, assessment.cropping_pattern)
+    ):
+        insights.append(
+            "Grassland Grazing Intensity & Carbon Balance: Continuous unmanaged stocking pressure depletes vegetative cover "
+            "and accelerates soil structural degradation, turning grassland soils from potential carbon sinks into net emissions sources (FAO Vol 3 p. 418)."
         )
 
     return insights

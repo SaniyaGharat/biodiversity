@@ -17,6 +17,13 @@ def format_conversational_recommendations(assessment_output: ReasoningAssessment
     lines = []
     lines.append("Based on the multi-variable ecological profile of your site, here are targeted, scientifically grounded recommendations:\n")
 
+    if assessment_output.overall_confidence:
+        lines.append(f"**Overall Assessment Confidence**: `{assessment_output.overall_confidence.upper()}`")
+        if assessment_output.confidence_rationale:
+            lines.append(f"*{assessment_output.confidence_rationale}*\n")
+        else:
+            lines.append("")
+
     for idx, rec in enumerate(recs, start=1):
         lines.append(f"### {idx}. {rec.action}")
         lines.append(f"**Ecological Mechanism**: {rec.mechanism}\n")

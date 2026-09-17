@@ -62,6 +62,7 @@ def detect_gaps(assessment: SiteAssessmentInput) -> GapAnalysisResult:
             assessment.biome,
             assessment.region,
             assessment.elevation_m,
+            assessment.species_richness_proxy,
         )
     )
     if has_biodiversity:

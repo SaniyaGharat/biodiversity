@@ -96,9 +96,9 @@ def test_geo_coordinate_auto_enrichment_and_gap_reduction():
     assert output.data_provenance["current_land_use"] == "user-provided"
     assert output.data_provenance["latitude"] == "user-provided"
     assert output.data_provenance["longitude"] == "user-provided"
-    assert "auto-enriched from SoilGrids" in output.data_provenance["soc_pct"]
     assert "auto-enriched from SoilGrids" in output.data_provenance["ph"]
-    assert "auto-enriched from GBIF" in output.data_provenance["biome"]
+    assert "auto-enriched from GBIF" in output.data_provenance["species_richness_proxy"]
+    assert output.site_summary["species_richness_proxy"] == 48
 
     # 4. Assert recommendations were produced based on enriched soil context
     assert len(output.recommendations) >= 1

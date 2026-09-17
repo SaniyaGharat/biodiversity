@@ -27,6 +27,9 @@ class SiteAssessmentInput(BaseModel):
     target_land_use: Optional[str] = Field(
         default=None, description="Target ecological or production objective (e.g. 'regenerative grain', 'restoration')"
     )
+    management_goals: Optional[str] = Field(
+        default=None, description="Ecological restoration, soil health, or conservation goals"
+    )
     area_ha: Optional[float] = Field(default=None, description="Total land area in hectares")
     cropping_pattern: Optional[str] = Field(
         default=None, description="Cropping pattern (e.g. 'continuous monoculture', '2-crop rotation', 'fallow-wheat')"
@@ -61,6 +64,11 @@ class SiteAssessmentInput(BaseModel):
     )
     grazing_intensity: Optional[str] = Field(
         default=None, description="Livestock grazing pressure (e.g. 'heavy continuous', 'rotational', 'none')"
+    )
+
+    # Regional Biodiversity Indicator (User-provided or auto-enriched from GBIF)
+    species_richness_proxy: Optional[int] = Field(
+        default=None, description="Observed or auto-enriched regional species count proxy"
     )
 
     # Geospatial Coordinates (Optional auto-connector enrichment)
@@ -138,6 +146,12 @@ class ReasoningAssessmentOutput(BaseModel):
     data_provenance: Dict[str, str] = Field(
         default_factory=dict,
         description="Explicit provenance mapping for each field (e.g. 'user-provided', 'auto-enriched from SoilGrids')",
+    )
+    overall_confidence: Literal["low", "medium", "high"] = Field(
+        default="high", description="Overall synthesis confidence score"
+    )
+    confidence_rationale: str = Field(
+        default="", description="Detailed narrative explaining overall confidence level and scientific grounding basis"
     )
     retrieved_evidence_count: int = Field(
         ..., description="Total scientific chunks retrieved and evaluated from the vector base"

@@ -1,7 +1,7 @@
 """Multi-Metric Reasoning Engine orchestrating gap analysis, retrieval, cross-variable synthesis, and grounding validation."""
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 from daaruka.knowledge.models import RetrievedChunk
 from daaruka.knowledge.retriever import retrieve
@@ -33,6 +33,29 @@ class MultiMetricReasoningEngine:
     ):
         self.soilgrids_client = soilgrids_client or SoilGridsClient()
         self.gbif_client = gbif_client or GBIFClient()
+
+    def _calculate_confidence_summary(
+        self, recommendations: List[Recommendation], gaps: Any
+    ) -> Tuple[str, str]:
+        """Compute top-level confidence level and explicit scientific rationale."""
+        if not recommendations:
+            return "low", "Insufficient site constraints and scientific evidence to produce grounded recommendations."
+
+        conf_levels = [r.confidence.lower() for r in recommendations]
+        num_missing = len(gaps.missing_categories) if hasattr(gaps, "missing_categories") else 0
+
+        if "low" in conf_levels:
+            overall = "low"
+        elif "medium" in conf_levels or num_missing > 2:
+            overall = "medium"
+        else:
+            overall = "high"
+
+        rationale = (
+            f"Overall assessment confidence is rated {overall.upper()} based on {len(recommendations)} peer-reviewed "
+            f"action(s) with verified page-level citations from FAO/IPCC/CBD literature and {num_missing} missing ecological pillar(s)."
+        )
+        return overall, rationale
 
     async def _enrich_from_connectors(self, lat: float, lon: float) -> Dict[str, Any]:
         """Fetch real-world observational data from SoilGrids and GBIF for coordinates."""
@@ -112,14 +135,12 @@ class MultiMetricReasoningEngine:
                 )
                 enriched_data["gbif"] = bio_metrics.model_dump()
 
-                # Auto-populate missing biodiversity context from GBIF
-                if working_assessment.biome is None:
-                    working_assessment.biome = f"regional ecosystem ({bio_metrics.species_richness_proxy} recorded species in 10km radius)"
-                    data_provenance["biome"] = "auto-enriched from GBIF Occurrence API"
-
-                data_provenance["species_richness_proxy"] = (
-                    f"auto-enriched from GBIF Occurrence API ({bio_metrics.species_richness_proxy} distinct species across {bio_metrics.total_occurrences_sampled} occurrences)"
-                )
+                # Auto-populate separate species_richness_proxy without overloading biome
+                if working_assessment.species_richness_proxy is None:
+                    working_assessment.species_richness_proxy = bio_metrics.species_richness_proxy
+                    data_provenance["species_richness_proxy"] = (
+                        f"auto-enriched from GBIF Occurrence API ({bio_metrics.species_richness_proxy} distinct species across {bio_metrics.total_occurrences_sampled} occurrences)"
+                    )
             except Exception as e:
                 logger.warning(f"Could not sync-enrich from GBIF: {e}")
 
@@ -156,6 +177,8 @@ class MultiMetricReasoningEngine:
             enforce_numeric_grounding=True,
         )
 
+        overall_conf, conf_rationale = self._calculate_confidence_summary(validated_recs, gaps)
+
         return ReasoningAssessmentOutput(
             site_summary=working_assessment.model_dump(exclude_none=True),
             gap_analysis=gaps,
@@ -164,6 +187,8 @@ class MultiMetricReasoningEngine:
             retrieved_evidence_count=len(available_chunks_map),
             cross_variable_insights=insights,
             recommendations=validated_recs,
+            overall_confidence=overall_conf,
+            confidence_rationale=conf_rationale,
         )
 
     async def evaluate_async(self, assessment: SiteAssessmentInput) -> ReasoningAssessmentOutput:
@@ -207,13 +232,11 @@ class MultiMetricReasoningEngine:
                 )
                 enriched_data["gbif"] = bio_metrics.model_dump()
 
-                if working_assessment.biome is None:
-                    working_assessment.biome = f"regional ecosystem ({bio_metrics.species_richness_proxy} recorded species in 10km radius)"
-                    data_provenance["biome"] = "auto-enriched from GBIF Occurrence API"
-
-                data_provenance["species_richness_proxy"] = (
-                    f"auto-enriched from GBIF Occurrence API ({bio_metrics.species_richness_proxy} distinct species across {bio_metrics.total_occurrences_sampled} occurrences)"
-                )
+                if working_assessment.species_richness_proxy is None:
+                    working_assessment.species_richness_proxy = bio_metrics.species_richness_proxy
+                    data_provenance["species_richness_proxy"] = (
+                        f"auto-enriched from GBIF Occurrence API ({bio_metrics.species_richness_proxy} distinct species across {bio_metrics.total_occurrences_sampled} occurrences)"
+                    )
             except Exception as e:
                 logger.warning(f"Could not enrich from GBIF: {e}")
 
@@ -242,6 +265,8 @@ class MultiMetricReasoningEngine:
             enforce_numeric_grounding=True,
         )
 
+        overall_conf, conf_rationale = self._calculate_confidence_summary(validated_recs, gaps)
+
         return ReasoningAssessmentOutput(
             site_summary=working_assessment.model_dump(exclude_none=True),
             gap_analysis=gaps,
@@ -250,6 +275,8 @@ class MultiMetricReasoningEngine:
             retrieved_evidence_count=len(available_chunks_map),
             cross_variable_insights=insights,
             recommendations=validated_recs,
+            overall_confidence=overall_conf,
+            confidence_rationale=conf_rationale,
         )
 
     def _synthesize_recommendations(
@@ -259,9 +286,35 @@ class MultiMetricReasoningEngine:
         recommendations: List[Recommendation] = []
         chunks_list = list(available_chunks_map.values())
 
-        # Match specific chunks by content and source
+        is_tropical = any(
+            "tropical" in str(val).lower() or "humid" in str(val).lower() or "rainforest" in str(val).lower()
+            for val in (assessment.rainfall_pattern, assessment.biome, assessment.current_land_use)
+        )
+        is_deforestation = any(
+            "deforest" in str(val).lower() or "clear" in str(val).lower() or "buffer" in str(val).lower() or "logging" in str(val).lower()
+            for val in (assessment.current_land_use, assessment.management_goals, assessment.cropping_pattern)
+        )
+        is_grassland = any(
+            "grassland" in str(val).lower() or "pasture" in str(val).lower() or "rangeland" in str(val).lower() or "grazing" in str(val).lower()
+            for val in (assessment.biome, assessment.current_land_use, assessment.cropping_pattern)
+        )
+        is_overgrazing = any(
+            "overgraz" in str(val).lower() or "intensive grazing" in str(val).lower() or "stocking" in str(val).lower() or "pasture" in str(val).lower()
+            for val in (assessment.current_land_use, assessment.management_goals, assessment.tillage_practice)
+        )
+
+        # Categorize retrieved chunks
+        ipcc_forest_chunks = [
+            c for c in chunks_list if "ipcc" in c.citation.publisher.lower() and ("conservation" in c.content.lower() or "deforestation" in c.content.lower() or "ecosystem" in c.content.lower())
+        ]
+        cbd_policy_chunks = [
+            c for c in chunks_list if "cbd" in c.citation.publisher.lower()
+        ]
         fao_agroforestry_chunks = [
-            c for c in chunks_list if "fao" in c.citation.publisher.lower() and ("agroforestry" in c.content.lower() or "agroecological" in c.content.lower())
+            c for c in chunks_list if "fao" in c.citation.publisher.lower() and ("agroforestry" in c.content.lower() or "agroecological" in c.content.lower() or "tree" in c.content.lower())
+        ]
+        fao_grassland_chunks = [
+            c for c in chunks_list if "fao" in c.citation.publisher.lower() and ("grazing" in c.content.lower() or "pasture" in c.content.lower() or "grassland" in c.content.lower())
         ]
         fao_cover_crop_chunks = [
             c for c in chunks_list if "fao" in c.citation.publisher.lower() and ("cover cropping" in c.content.lower() or "cover crops" in c.content.lower())
@@ -269,40 +322,181 @@ class MultiMetricReasoningEngine:
         fao_tillage_chunks = [
             c for c in chunks_list if "fao" in c.citation.publisher.lower() and ("no-till" in c.content.lower() or "tillage" in c.content.lower() or "conventional" in c.content.lower())
         ]
-        policy_resilience_chunks = [
-            c for c in chunks_list if ("cbd" in c.citation.publisher.lower() or "ipcc" in c.citation.publisher.lower())
-        ]
 
+        def _to_source(c: RetrievedChunk) -> RecommendationSource:
+            return RecommendationSource(
+                chunk_id=c.chunk_id,
+                document_title=c.citation.document_title,
+                publisher=c.citation.publisher,
+                year=c.citation.year,
+                section_title=c.citation.section_title,
+                page=c.citation.page,
+                url_or_doi=c.citation.url_or_doi,
+                citation=c.citation.citation_string(),
+            )
+
+        # -------------------------------------------------------------
+        # Branch A: Tropical Deforestation & Forest Buffer Restoration
+        # -------------------------------------------------------------
+        if is_tropical or is_deforestation:
+            trop_af_sources = []
+            if fao_agroforestry_chunks:
+                trop_af_sources.append(_to_source(fao_agroforestry_chunks[0]))
+            if ipcc_forest_chunks:
+                trop_af_sources.append(_to_source(ipcc_forest_chunks[0]))
+            elif cbd_policy_chunks:
+                trop_af_sources.append(_to_source(cbd_policy_chunks[0]))
+
+            if trop_af_sources:
+                recommendations.append(
+                    Recommendation(
+                        action="Establish Multi-Strata Agroforestry Buffers & High-Carbon Native Tree Corridors",
+                        mechanism=(
+                            "Establishing multi-layered native tree canopies and agroforestry corridors along deforested margins "
+                            "buffers microclimates against thermal extremes, mitigates edge-effect moisture losses, and reconnects "
+                            "fragmented habitat patches for native biodiversity."
+                        ),
+                        variable_interactions=[
+                            "Canopy Stratification <-> Microclimate Thermal Buffering",
+                            "Forest Buffer Connectivity <-> Native Fauna Dispersal Corridors",
+                            "Deep Perennial Root Biomass <-> Humid Tropical Soil Carbon Stabilization",
+                        ],
+                        impacted_metrics=[
+                            "Primary Forest Edge Protection",
+                            "Soil Organic Carbon in subsoil layers",
+                            "Species Richness Proxy & Forest Connectivity",
+                            "Microclimate Stability",
+                        ],
+                        estimated_effect=(
+                            "Protects high-carbon forest margins and enhances structural connectivity per IPCC and FAO agroecological guidelines."
+                        ),
+                        time_horizon="medium-term",
+                        confidence="high",
+                        sources=trop_af_sources,
+                    )
+                )
+
+            trop_cbd_sources = []
+            if cbd_policy_chunks:
+                trop_cbd_sources.append(_to_source(cbd_policy_chunks[0]))
+            if ipcc_forest_chunks:
+                trop_cbd_sources.append(_to_source(ipcc_forest_chunks[0]))
+
+            if trop_cbd_sources:
+                recommendations.append(
+                    Recommendation(
+                        action="Targeted Ecological Restoration of Degraded Terrestrial Margins",
+                        mechanism=(
+                            "Restoring native vegetation cover on degraded agricultural clearings enhances soil hydrological function, "
+                            "rebuilds mycorrhizal networks, and halts ongoing carbon emissions from high-carbon terrestrial ecosystems."
+                        ),
+                        variable_interactions=[
+                            "Vegetation Succession <-> Mycorrhizal Network Re-establishment",
+                            "Native Reforestation <-> Net Carbon Removals",
+                            "Buffer Zone Protection <-> Protected Area Integrity",
+                        ],
+                        impacted_metrics=[
+                            "Ecosystem Intactness & Biodiversity Targets",
+                            "Net Biomass Carbon Removals",
+                            "Soil Infiltration & Runoff Reduction",
+                        ],
+                        estimated_effect=(
+                            "Advances effective ecological restoration of degraded terrestrial ecosystems to enhance biodiversity and carbon sink capacity."
+                        ),
+                        time_horizon="long-term",
+                        confidence="high",
+                        sources=trop_cbd_sources,
+                    )
+                )
+
+            return recommendations
+
+        # -------------------------------------------------------------
+        # Branch B: Temperate Grassland Overgrazing & Pasture Management
+        # -------------------------------------------------------------
+        if is_grassland or is_overgrazing:
+            rot_sources = []
+            if fao_grassland_chunks:
+                rot_sources.append(_to_source(fao_grassland_chunks[0]))
+            elif chunks_list:
+                rot_sources.append(_to_source(chunks_list[0]))
+
+            if rot_sources:
+                recommendations.append(
+                    Recommendation(
+                        action="Implement Adaptive Rotational Grazing & Stocking Density Management",
+                        mechanism=(
+                            "Adjusting livestock grazing frequency, intensity, and paddock rest intervals allows pasture species "
+                            "to recover photosynthetic leaf area, preventing topsoil compaction and maintaining root exudation "
+                            "essential for soil organic carbon cycling."
+                        ),
+                        variable_interactions=[
+                            "Stocking Density Control <-> Pasture Biomass Regrowth",
+                            "Vegetative Cover Preservation <-> Topsoil Macroaggregate Stability",
+                            "Root Turnover <-> Grassland Soil Carbon Cycling",
+                        ],
+                        impacted_metrics=[
+                            "Topsoil Carbon Sink Dynamics",
+                            "Bulk Density & Soil Compaction",
+                            "Pasture Carrying Capacity",
+                        ],
+                        estimated_effect=(
+                            "Maintains positive grassland carbon balance and prevents degradation, optimizing the transition between soil carbon sink and source dynamics."
+                        ),
+                        time_horizon="short-term",
+                        confidence="high",
+                        sources=rot_sources,
+                    )
+                )
+
+            div_sources = []
+            if len(fao_grassland_chunks) > 1:
+                div_sources.append(_to_source(fao_grassland_chunks[1]))
+            elif fao_grassland_chunks:
+                div_sources.append(_to_source(fao_grassland_chunks[0]))
+            if cbd_policy_chunks:
+                div_sources.append(_to_source(cbd_policy_chunks[0]))
+
+            if div_sources:
+                recommendations.append(
+                    Recommendation(
+                        action="Pasture Diversification with Deep-Rooted Perennial Legumes",
+                        mechanism=(
+                            "Introducing nitrogen-fixing legume species alongside perennial grassland grasses improves soil nitrogen status, "
+                            "stimulates deep root development, and enhances soil macroaggregate formation under grazing regimes."
+                        ),
+                        variable_interactions=[
+                            "Legume Nitrogen Fixation <-> Soil Microbiome Activity",
+                            "Root Depth Diversity <-> Soil Water & Nutrient Infiltration",
+                            "Forage Diversity <-> Grazing Animal Nutrition",
+                        ],
+                        impacted_metrics=[
+                            "Soil Nitrogen Availability & C:N Ratio",
+                            "Deep Soil Organic Carbon",
+                            "Pasture Floristic Diversity",
+                        ],
+                        estimated_effect=(
+                            "Increases pasture production and soil carbon retention through the incorporation of nitrogen-fixing species and perennial grassland species."
+                        ),
+                        time_horizon="medium-term",
+                        confidence="high",
+                        sources=div_sources,
+                    )
+                )
+
+            return recommendations
+
+        # -------------------------------------------------------------
+        # Branch C: Cropland / Semi-Arid Monoculture (Default Regime)
+        # -------------------------------------------------------------
         # 1. Recommendation: Agroforestry & Field-Margin Hedgerows
         af_sources = []
         if fao_agroforestry_chunks:
-            c = fao_agroforestry_chunks[0]
-            af_sources.append(
-                RecommendationSource(
-                    chunk_id=c.chunk_id,
-                    document_title=c.citation.document_title,
-                    publisher=c.citation.publisher,
-                    year=c.citation.year,
-                    section_title=c.citation.section_title,
-                    page=c.citation.page,
-                    url_or_doi=c.citation.url_or_doi,
-                    citation=c.citation.citation_string(),
-                )
-            )
-        if policy_resilience_chunks:
-            c = policy_resilience_chunks[0]
-            af_sources.append(
-                RecommendationSource(
-                    chunk_id=c.chunk_id,
-                    document_title=c.citation.document_title,
-                    publisher=c.citation.publisher,
-                    year=c.citation.year,
-                    section_title=c.citation.section_title,
-                    page=c.citation.page,
-                    url_or_doi=c.citation.url_or_doi,
-                    citation=c.citation.citation_string(),
-                )
-            )
+            af_sources.append(_to_source(fao_agroforestry_chunks[0]))
+        if cbd_policy_chunks:
+            af_sources.append(_to_source(cbd_policy_chunks[0]))
+        elif ipcc_forest_chunks:
+            af_sources.append(_to_source(ipcc_forest_chunks[0]))
 
         if af_sources:
             recommendations.append(
@@ -326,7 +520,7 @@ class MultiMetricReasoningEngine:
                     ],
                     estimated_effect=(
                         "Increases carbon storage through combined aboveground and belowground tree biomass, enhances structural "
-                        "landscape heterogeneity, and advances biodiversity-friendly management mandated under CBD Kunming-Montreal Target 10."
+                        "landscape heterogeneity, and advances biodiversity-friendly management."
                     ),
                     time_horizon="medium-term",
                     confidence="high",
@@ -337,33 +531,9 @@ class MultiMetricReasoningEngine:
         # 2. Recommendation: Tailored Dryland Cover Cropping & Legume Integration
         cc_sources = []
         if fao_cover_crop_chunks:
-            c = fao_cover_crop_chunks[0]
-            cc_sources.append(
-                RecommendationSource(
-                    chunk_id=c.chunk_id,
-                    document_title=c.citation.document_title,
-                    publisher=c.citation.publisher,
-                    year=c.citation.year,
-                    section_title=c.citation.section_title,
-                    page=c.citation.page,
-                    url_or_doi=c.citation.url_or_doi,
-                    citation=c.citation.citation_string(),
-                )
-            )
+            cc_sources.append(_to_source(fao_cover_crop_chunks[0]))
         elif chunks_list:
-            c = chunks_list[0]
-            cc_sources.append(
-                RecommendationSource(
-                    chunk_id=c.chunk_id,
-                    document_title=c.citation.document_title,
-                    publisher=c.citation.publisher,
-                    year=c.citation.year,
-                    section_title=c.citation.section_title,
-                    page=c.citation.page,
-                    url_or_doi=c.citation.url_or_doi,
-                    citation=c.citation.citation_string(),
-                )
-            )
+            cc_sources.append(_to_source(chunks_list[0]))
 
         if cc_sources:
             recommendations.append(
@@ -386,7 +556,7 @@ class MultiMetricReasoningEngine:
                     ],
                     estimated_effect=(
                         "Enhances soil organic carbon stocks while managing potential soil water competition in semiarid environments, "
-                        "improving water infiltration and aggregate stability per FAO Technical Manual Vol. 3 (Page 21)."
+                        "improving water infiltration and aggregate stability."
                     ),
                     time_horizon="short-term",
                     confidence="high",
@@ -396,19 +566,7 @@ class MultiMetricReasoningEngine:
 
         # 3. Recommendation: Zero-Tillage Conversion Measured Across Profile (if tillage evidence retrieved)
         if fao_tillage_chunks:
-            c = fao_tillage_chunks[0]
-            zt_sources = [
-                RecommendationSource(
-                    chunk_id=c.chunk_id,
-                    document_title=c.citation.document_title,
-                    publisher=c.citation.publisher,
-                    year=c.citation.year,
-                    section_title=c.citation.section_title,
-                    page=c.citation.page,
-                    url_or_doi=c.citation.url_or_doi,
-                    citation=c.citation.citation_string(),
-                )
-            ]
+            zt_sources = [_to_source(fao_tillage_chunks[0])]
             recommendations.append(
                 Recommendation(
                     action="Transition to Conservation Tillage & Residue Retention Management",
