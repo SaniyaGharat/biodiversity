@@ -611,12 +611,3 @@ Based on the multi-variable ecological profile of your site, here are targeted, 
 4. **In-Memory Session Persistence**: The chat session store is maintained in-memory for the hackathon prototype and clears on server restart.
 
 ---
-
-## 👥 Repository & Collaborators
-
-- **Repository**: [https://github.com/SaniyaGharat/biodiversity](https://github.com/SaniyaGharat/biodiversity) (Public)
-- **Hackathon Evaluation Collaborators**:
-  - `ankita.dasgupta@darukaa.com`
-  - `harsh.kumar@darukaa.com`
-  - `utkarsh.gauniyal@darukaa.com`
-  - `guneet.mutreja@darukaa.com`
