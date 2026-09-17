@@ -8,20 +8,23 @@ class SourceCitation(BaseModel):
     """Scientific source citation metadata attached to knowledge chunks."""
 
     document_title: str = Field(..., description="Full title of the source document or publication")
-    publisher: str = Field(..., description="Publishing organization or journal (e.g. FAO, IPCC, IPBES)")
+    publisher: str = Field(..., description="Publishing organization or journal (e.g. FAO, IPCC, CBD)")
     year: int = Field(..., description="Year of publication")
     section_title: str = Field(default="General", description="Section or chapter heading within the document")
-    page: Optional[int] = Field(default=None, description="Page number if applicable")
+    page: Optional[int] = Field(default=None, description="Exact PDF page number")
     topics: List[str] = Field(default_factory=list, description="Categorical ecological topic tags")
     url_or_doi: Optional[str] = Field(default=None, description="URL or DOI identifier for traceability")
 
     def citation_string(self) -> str:
-        """Format standardized scientific citation string."""
-        loc = f", Sec. '{self.section_title}'"
-        if self.page:
-            loc += f" (p. {self.page})"
+        """Format standardized scientific citation string with verifiable page number."""
+        page_str = f" (p. {self.page})" if self.page else ""
+        sec_str = (
+            f", Sec. '{self.section_title}'"
+            if self.section_title and not self.section_title.lower().startswith("page")
+            else ""
+        )
         doi_str = f" [{self.url_or_doi}]" if self.url_or_doi else ""
-        return f"[{self.publisher}, {self.year}] {self.document_title}{loc}{doi_str}"
+        return f"[{self.publisher}, {self.year}] {self.document_title}{sec_str}{page_str}{doi_str}"
 
 
 class RetrievedChunk(BaseModel):

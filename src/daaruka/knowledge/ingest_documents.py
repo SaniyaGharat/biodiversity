@@ -1,4 +1,4 @@
-"""Standalone CLI script to re-run corpus ingestion into ChromaDB."""
+"""Standalone CLI script to re-run real PDF corpus ingestion into ChromaDB."""
 
 import os
 import sys
@@ -6,7 +6,6 @@ import argparse
 import logging
 from pathlib import Path
 
-# Add project root and src to sys.path
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(BASE_DIR / "src"))
 
@@ -18,12 +17,12 @@ logger = logging.getLogger("daaruka.ingest_documents")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Ingest scientific biodiversity documents into ChromaDB.")
+    parser = argparse.ArgumentParser(description="Ingest real scientific PDF reports into ChromaDB.")
     parser.add_argument(
-        "--corpus-dir",
+        "--raw-dir",
         type=str,
-        default=str(BASE_DIR / "data" / "corpus"),
-        help="Path to the document corpus directory (default: data/corpus)",
+        default=str(BASE_DIR / "data" / "raw"),
+        help="Path to the directory containing raw PDF reports (default: data/raw)",
     )
     parser.add_argument(
         "--reset",
@@ -32,17 +31,17 @@ def main():
     )
     args = parser.parse_args()
 
-    corpus_path = os.path.abspath(args.corpus_dir)
-    logger.info(f"Target corpus directory: {corpus_path}")
+    raw_path = os.path.abspath(args.raw_dir)
+    logger.info(f"Target raw PDFs directory: {raw_path}")
 
     if args.reset:
         logger.warning("Resetting existing ChromaDB knowledge collection...")
         default_vector_store.clear()
 
     engine = DocumentIngestionEngine(vector_store=default_vector_store)
-    stats = engine.ingest_directory(corpus_path)
+    stats = engine.ingest_directory(raw_path)
 
-    logger.info("Ingestion complete!")
+    logger.info("Ingestion of real PDF documents complete!")
     logger.info(f"  Files processed: {stats['processed_files_count']} ({', '.join(stats['files'])})")
     logger.info(f"  Chunks created:   {stats['total_chunks_created']}")
     logger.info(f"  Total in DB:      {stats['total_collection_count']}")

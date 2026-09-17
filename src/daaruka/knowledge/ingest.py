@@ -1,4 +1,4 @@
-"""Document ingestion engine for parsing PDF and Markdown corpora into ChromaDB."""
+"""Programmatic PDF text extraction and ingestion engine with real page-boundary tracking."""
 
 import os
 import glob
@@ -6,11 +6,7 @@ import logging
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-try:
-    from pypdf import PdfReader
-    PYPDF_AVAILABLE = True
-except ImportError:
-    PYPDF_AVAILABLE = False
+from pypdf import PdfReader
 
 from daaruka.knowledge.chunker import DocumentChunker
 from daaruka.knowledge.models import RetrievedChunk
@@ -18,9 +14,33 @@ from daaruka.knowledge.vector_store import VectorStore, default_vector_store
 
 logger = logging.getLogger(__name__)
 
+DOCUMENT_METADATA_REGISTRY: Dict[str, Dict[str, Any]] = {
+    "cbd_cop15_dec_04.pdf": {
+        "document_title": "CBD COP15 Decision 15/4: Kunming-Montreal Global Biodiversity Framework",
+        "publisher": "Convention on Biological Diversity (CBD / UNEP)",
+        "year": 2022,
+        "topics": ["policy", "restoration", "biodiversity-targets", "conservation", "protected-areas"],
+        "url_or_doi": "https://www.cbd.int/doc/decisions/cop-15/cop-15-dec-04-en.pdf",
+    },
+    "ipcc_ar6_wg2_chapter02.pdf": {
+        "document_title": "IPCC AR6 WGII Chapter 2: Terrestrial and Freshwater Ecosystems and their Services",
+        "publisher": "Intergovernmental Panel on Climate Change (IPCC)",
+        "year": 2022,
+        "topics": ["climate", "biodiversity", "ecosystems", "tipping-points", "resilience", "species-extinction"],
+        "url_or_doi": "https://doi.org/10.1017/9781009325844.004",
+    },
+    "fao_recarbonizing_global_soils_vol3.pdf": {
+        "document_title": "Recarbonizing Global Soils: A Technical Manual of Recommended Management Practices (Vol 3: Cropland & Grassland Systems)",
+        "publisher": "Food and Agriculture Organization of the United Nations (FAO)",
+        "year": 2021,
+        "topics": ["soil", "carbon", "cover-cropping", "agriculture", "soc", "tillage", "soil-organic-carbon"],
+        "url_or_doi": "https://doi.org/10.4060/cb6595en",
+    },
+}
+
 
 class DocumentIngestionEngine:
-    """Ingests and indexes authoritative environmental documents into vector store."""
+    """Ingests real PDF documents into ChromaDB with programmatic page-boundary citations."""
 
     def __init__(
         self,
@@ -28,73 +48,68 @@ class DocumentIngestionEngine:
         chunker: Optional[DocumentChunker] = None,
     ):
         self.vector_store = vector_store or default_vector_store
-        self.chunker = chunker or DocumentChunker()
+        self.chunker = chunker or DocumentChunker(chunk_size=750, chunk_overlap=120)
 
-    def parse_pdf(self, file_path: str, default_metadata: Optional[Dict[str, Any]] = None) -> List[RetrievedChunk]:
-        """Extract text from PDF pages and generate chunked records with page citations."""
-        if not PYPDF_AVAILABLE:
-            raise ImportError("pypdf is required for PDF parsing. Install with `pip install pypdf`.")
+    def parse_pdf_file(self, file_path: str) -> List[RetrievedChunk]:
+        """Extract text page-by-page from raw PDF, preserving exact physical page numbers."""
+        filename = os.path.basename(file_path).lower()
+        meta = DOCUMENT_METADATA_REGISTRY.get(filename, {
+            "document_title": Path(file_path).stem.replace("_", " ").title(),
+            "publisher": "Scientific Report",
+            "year": 2022,
+            "topics": ["environment", "biodiversity"],
+            "url_or_doi": None,
+        })
 
         reader = PdfReader(file_path)
-        meta = default_metadata or {}
-        doc_title = meta.get("document_title", Path(file_path).stem.replace("_", " ").title())
-        publisher = meta.get("publisher", "Scientific Report")
-        year = meta.get("year", 2024)
-        topics = meta.get("topics", ["biodiversity", "environment"])
-        url_or_doi = meta.get("url_or_doi")
-
         all_chunks: List[RetrievedChunk] = []
 
+        logger.info(f"Extracting text from '{filename}' ({len(reader.pages)} pages)...")
+
         for page_idx, page in enumerate(reader.pages, start=1):
-            text = page.extract_text()
-            if not text or not text.strip():
+            try:
+                text = page.extract_text() or ""
+            except Exception as e:
+                logger.warning(f"Error extracting text from page {page_idx} of {filename}: {e}")
                 continue
 
+            clean_text = text.strip()
+            # Skip empty pages or cover pages with minimal text
+            if len(clean_text) < 50:
+                continue
+
+            # Programmatic chunking with real 1-indexed PDF page metadata
             page_chunks = self.chunker.chunk_section(
-                section_text=text,
-                document_title=doc_title,
-                publisher=publisher,
-                year=year,
+                section_text=clean_text,
+                document_title=meta["document_title"],
+                publisher=meta["publisher"],
+                year=meta["year"],
                 section_title=f"Page {page_idx}",
-                topics=topics,
+                topics=meta["topics"],
                 page=page_idx,
-                url_or_doi=url_or_doi,
+                url_or_doi=meta.get("url_or_doi"),
             )
             all_chunks.extend(page_chunks)
 
+        logger.info(f"Generated {len(all_chunks)} chunks with real page metadata from '{filename}'.")
         return all_chunks
 
-    def parse_markdown(self, file_path: str) -> List[RetrievedChunk]:
-        """Parse markdown file containing frontmatter metadata and section headings."""
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        return self.chunker.chunk_markdown_document(content)
-
-    def ingest_file(self, file_path: str) -> List[RetrievedChunk]:
-        """Parse a single PDF or Markdown file and return generated chunks."""
-        ext = os.path.splitext(file_path)[1].lower()
-        if ext in (".md", ".markdown", ".txt"):
-            return self.parse_markdown(file_path)
-        elif ext == ".pdf":
-            return self.parse_pdf(file_path)
-        else:
-            logger.warning(f"Unsupported file format '{ext}' for file {file_path}")
-            return []
-
     def ingest_directory(self, directory_path: str) -> Dict[str, Any]:
-        """Recursively scan directory, parse all supported documents, and upsert to vector store."""
+        """Scan raw directory, extract text from real PDFs, and upsert to ChromaDB."""
         if not os.path.exists(directory_path):
-            raise FileNotFoundError(f"Corpus directory not found: {directory_path}")
+            raise FileNotFoundError(f"Raw data directory not found: {directory_path}")
+
+        pdf_files = glob.glob(os.path.join(directory_path, "*.pdf"))
+        if not pdf_files:
+            raise FileNotFoundError(f"No PDF files found in {directory_path}")
 
         all_chunks: List[RetrievedChunk] = []
         processed_files: List[str] = []
 
-        patterns = ["*.md", "*.markdown", "*.txt", "*.pdf"]
-        for pattern in patterns:
-            for filepath in glob.glob(os.path.join(directory_path, "**", pattern), recursive=True):
-                chunks = self.ingest_file(filepath)
-                all_chunks.extend(chunks)
-                processed_files.append(os.path.basename(filepath))
+        for filepath in pdf_files:
+            chunks = self.parse_pdf_file(filepath)
+            all_chunks.extend(chunks)
+            processed_files.append(os.path.basename(filepath))
 
         total_upserted = self.vector_store.add_chunks(all_chunks)
 
