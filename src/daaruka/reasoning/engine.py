@@ -100,11 +100,12 @@ class MultiMetricReasoningEngine:
         # Step 5: Synthesize grounded recommendations mapped strictly to retrieved chunks
         candidate_recommendations = self._synthesize_recommendations(assessment, available_chunks_map)
 
-        # Step 6: Strict grounding validation
+        # Step 6: Strict grounding validation (including numeric presence check)
         validated_recs, validation_log = validate_and_filter_recommendations(
             recommendations=candidate_recommendations,
             available_chunks_map=available_chunks_map,
             strict=False,
+            enforce_numeric_grounding=True,
         )
 
         return ReasoningAssessmentOutput(
@@ -123,20 +124,21 @@ class MultiMetricReasoningEngine:
         recommendations: List[Recommendation] = []
         chunks_list = list(available_chunks_map.values())
 
-        # Find best matching FAO chunk for cover cropping
-        fao_cover_crop_chunks = [
-            c for c in chunks_list if "fao" in c.citation.publisher.lower() and ("cover" in c.content.lower() or "crop" in c.content.lower())
-        ]
-        # Find best matching FAO chunk for agroforestry / conservation
+        # Match specific chunks by content and source
         fao_agroforestry_chunks = [
-            c for c in chunks_list if "fao" in c.citation.publisher.lower() and ("agroforestry" in c.content.lower() or "tillage" in c.content.lower() or "residue" in c.content.lower())
+            c for c in chunks_list if "fao" in c.citation.publisher.lower() and ("agroforestry" in c.content.lower() or "agroecological" in c.content.lower())
         ]
-        # Find best matching CBD / IPCC chunk for biodiversity & connectivity
+        fao_cover_crop_chunks = [
+            c for c in chunks_list if "fao" in c.citation.publisher.lower() and ("cover cropping" in c.content.lower() or "cover crops" in c.content.lower())
+        ]
+        fao_tillage_chunks = [
+            c for c in chunks_list if "fao" in c.citation.publisher.lower() and ("no-till" in c.content.lower() or "tillage" in c.content.lower() or "conventional" in c.content.lower())
+        ]
         policy_resilience_chunks = [
             c for c in chunks_list if ("cbd" in c.citation.publisher.lower() or "ipcc" in c.citation.publisher.lower())
         ]
 
-        # 1. Recommendation: Agroforestry & Field-Margin Hedgerows (Landscape Heterogeneity)
+        # 1. Recommendation: Agroforestry & Field-Margin Hedgerows
         af_sources = []
         if fao_agroforestry_chunks:
             c = fao_agroforestry_chunks[0]
@@ -172,9 +174,9 @@ class MultiMetricReasoningEngine:
                 Recommendation(
                     action="Integrate Multi-Species Agroforestry Hedgerows & Field Margins",
                     mechanism=(
-                        "Combining deep-rooted native woody perennials (trees/shrubs) with annual crops creates a stratified "
-                        "canopy that buffers microclimatic heat extremes, reduces wind-driven evapotranspiration, and establishes "
-                        "continuous ecological corridors for beneficial pollinator and predator species across monoculture landscapes."
+                        "Combining woody perennials with annual crops establishes structural diversity that buffers microclimates "
+                        "against heat extremes, reduces wind-driven evapotranspiration, and creates continuous ecological corridors "
+                        "for beneficial pollinator and predator taxa across monoculture landscapes."
                     ),
                     variable_interactions=[
                         "Vegetation Structural Diversity <-> Microclimate Thermal Buffering",
@@ -183,13 +185,13 @@ class MultiMetricReasoningEngine:
                     ],
                     impacted_metrics=[
                         "Field Evaporative Water Loss",
-                        "Soil Organic Carbon in subsoil (30-100 cm)",
+                        "Soil Organic Carbon in subsoil layers",
                         "Species Richness Proxy & Pollinator Density",
                         "Ecological Connectivity (CBD Target 10)",
                     ],
                     estimated_effect=(
-                        "Reduces topsoil evaporative loss by 15-25%, enhances beneficial insect diversity, and contributes to "
-                        "sustainable landscape heterogeneity benchmarks mandated by CBD Kunming-Montreal Target 10."
+                        "Increases carbon storage through combined aboveground and belowground tree biomass, enhances structural "
+                        "landscape heterogeneity, and advances biodiversity-friendly management mandated under CBD Kunming-Montreal Target 10."
                     ),
                     time_horizon="medium-term",
                     confidence="high",
@@ -197,7 +199,7 @@ class MultiMetricReasoningEngine:
                 )
             )
 
-        # 2. Recommendation: Dryland-Adapted Legume Cover Cropping & Crop Diversification
+        # 2. Recommendation: Tailored Dryland Cover Cropping & Legume Integration
         cc_sources = []
         if fao_cover_crop_chunks:
             c = fao_cover_crop_chunks[0]
@@ -231,25 +233,25 @@ class MultiMetricReasoningEngine:
         if cc_sources:
             recommendations.append(
                 Recommendation(
-                    action="Implement Seasonal Legume Cover Cropping & Rotational Fallow Replacement",
+                    action="Implement Seasonal Legume Cover Cropping Tailored to Semiarid Moisture Constraints",
                     mechanism=(
-                        "Introducing drought-adapted leguminous cover crops fixes atmospheric nitrogen to optimize the soil "
-                        "microbial C:N ratio, accelerating the formation of mineral-associated organic matter (MAOM) while supplying "
-                        "continuous root exudates that enhance aggregate stability without competing for primary crop water."
+                        "Introducing drought-adapted leguminous cover crops fixes atmospheric nitrogen to enhance microbial C:N balance "
+                        "and build topsoil organic carbon. In semiarid regions where precipitation is limited, careful selection of cover "
+                        "crop species and growth windows avoids soil water competition with primary crops (Unger and Vigil, 1998)."
                     ),
                     variable_interactions=[
-                        "Legume Nitrogen Fixation <-> Microbial Organic Carbon Stabilization",
-                        "Continuous Root Exudation <-> Soil Aggregate Water Holding Capacity",
-                        "Crop Rotation Diversification <-> Soil Biota Redundancy",
+                        "Legume Nitrogen Fixation <-> Soil Microbial Carbon Stabilization",
+                        "Cover Crop Water Demand <-> Semiarid Available Soil Moisture",
+                        "Crop Diversification <-> Soil Biota Redundancy",
                     ],
                     impacted_metrics=[
-                        "Topsoil Organic Carbon Sequestration Rate (t C/ha/yr)",
+                        "Topsoil Organic Carbon Stock (SOC)",
                         "Available Soil Moisture Retention",
-                        "Soil Microbial Biomass Carbon",
+                        "Soil Microbial Parameters",
                     ],
                     estimated_effect=(
-                        "Generates an average topsoil (0-30 cm) SOC sequestration increase of +0.32 to +0.55 t C/ha/yr, improves "
-                        "water retention capacity by up to 20-35%, and reduces nitrate leaching losses per FAO Technical Manual Vol. 3."
+                        "Enhances soil organic carbon stocks while managing potential soil water competition in semiarid environments, "
+                        "improving water infiltration and aggregate stability per FAO Technical Manual Vol. 3 (Page 21)."
                     ),
                     time_horizon="short-term",
                     confidence="high",
@@ -257,11 +259,10 @@ class MultiMetricReasoningEngine:
                 )
             )
 
-        # 3. Recommendation: Zero-Tillage with Direct Residue Retention (≥ 30% Cover)
-        zt_sources = []
-        if len(fao_cover_crop_chunks) > 1:
-            c = fao_cover_crop_chunks[1]
-            zt_sources.append(
+        # 3. Recommendation: Zero-Tillage Conversion Measured Across Profile (if tillage evidence retrieved)
+        if fao_tillage_chunks:
+            c = fao_tillage_chunks[0]
+            zt_sources = [
                 RecommendationSource(
                     chunk_id=c.chunk_id,
                     document_title=c.citation.document_title,
@@ -272,43 +273,25 @@ class MultiMetricReasoningEngine:
                     url_or_doi=c.citation.url_or_doi,
                     citation=c.citation.citation_string(),
                 )
-            )
-        elif chunks_list:
-            c = chunks_list[-1]
-            zt_sources.append(
-                RecommendationSource(
-                    chunk_id=c.chunk_id,
-                    document_title=c.citation.document_title,
-                    publisher=c.citation.publisher,
-                    year=c.citation.year,
-                    section_title=c.citation.section_title,
-                    page=c.citation.page,
-                    url_or_doi=c.citation.url_or_doi,
-                    citation=c.citation.citation_string(),
-                )
-            )
-
-        if zt_sources:
+            ]
             recommendations.append(
                 Recommendation(
-                    action="Transition to Zero-Tillage (No-Till) with ≥ 30% Crop Residue Retention",
+                    action="Transition to Conservation Tillage & Residue Retention Management",
                     mechanism=(
-                        "Eliminating mechanical tillage passes halts the physical disruption of soil macroaggregates, preventing "
-                        "the oxidative exposure of protected carbon to rapid microbial mineralization while maintaining a surface "
-                        "mulch barrier that minimizes evaporative water loss and insulates topsoil against extreme temperature spikes."
+                        "Eliminating or reducing intensive tillage avoids continuous soil aggregate disruption in topsoil layers, "
+                        "reducing oxidative carbon losses while increasing water infiltration and reducing soil erosion."
                     ),
                     variable_interactions=[
-                        "Tillage Reduction <-> Soil Macroaggregate Carbon Protection",
-                        "Surface Residue Mulch <-> Topsoil Thermal & Evaporative Buffering",
+                        "Tillage Reduction <-> Soil Organic Carbon Accumulation",
+                        "Soil Structure Protection <-> Infiltration Capacity",
                     ],
                     impacted_metrics=[
-                        "Macroaggregate Stability Index",
-                        "Surface Runoff & Soil Erosion Rate",
-                        "Topsoil Temperature Extremes",
+                        "Topsoil Organic Carbon Retention",
+                        "Soil Macroaggregate Stability",
+                        "Surface Evaporative Water Loss",
                     ],
                     estimated_effect=(
-                        "Reduces oxidative carbon losses, improves soil moisture retention by reducing evaporation by 20-30%, "
-                        "and decreases soil erosion risk by > 40% compared to conventional moldboard plowing."
+                        "Stabilizes topsoil organic carbon and improves soil structure retention compared to conventional inversion plowing."
                     ),
                     time_horizon="short-term",
                     confidence="high",

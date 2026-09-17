@@ -1,4 +1,4 @@
-"""Unit and integration tests for Phase 2 Multi-Metric Reasoning Engine."""
+"""Unit and integration tests for Phase 2 Multi-Metric Reasoning Engine with numeric grounding validation."""
 
 import pytest
 from pydantic import ValidationError
@@ -11,6 +11,7 @@ from daaruka.reasoning.models import (
 from daaruka.reasoning.gap_detector import detect_gaps
 from daaruka.reasoning.validator import (
     validate_and_filter_recommendations,
+    verify_numeric_grounding,
     GroundingValidationError,
 )
 from daaruka.reasoning.engine import evaluate_site, MultiMetricReasoningEngine
@@ -70,7 +71,7 @@ def test_gap_detection_full_input():
 
 
 # ---------------------------------------------------------------------------
-# 2. GROUNDING & SCHEMA VALIDATOR TESTS
+# 2. GROUNDING & NUMERIC VALIDATOR TESTS
 # ---------------------------------------------------------------------------
 
 def test_pydantic_schema_enforces_min_two_variable_interactions():
@@ -91,7 +92,7 @@ def test_pydantic_schema_enforces_min_two_variable_interactions():
             mechanism="Only impacts one variable.",
             variable_interactions=["Soil Carbon"],  # Invalid: only 1 variable
             impacted_metrics=["SOC"],
-            estimated_effect="+0.5 t/ha",
+            estimated_effect="Improves soil health.",
             time_horizon="short-term",
             confidence="high",
             sources=[fake_source],
@@ -116,7 +117,7 @@ def test_validator_rejects_hallucinated_chunk_id():
         mechanism="Trees sequester carbon and improve soil biology across boundaries.",
         variable_interactions=["Soil Carbon <-> Tree Biomass", "Microclimate <-> Soil Moisture"],
         impacted_metrics=["SOC", "Moisture"],
-        estimated_effect="+1.0 t/ha",
+        estimated_effect="Improves carbon.",
         time_horizon="medium-term",
         confidence="high",
         sources=[fake_source],
@@ -135,54 +136,31 @@ def test_validator_rejects_hallucinated_chunk_id():
     assert "Ungrounded chunk_id" in error_log[0]
 
 
-def test_validator_accepts_grounded_recommendation():
-    """Test validator passes recommendations where chunk_id exists in retrieved set."""
+def test_numeric_grounding_rejects_unsupported_numbers():
+    """Test validator catches and rejects unsupported numbers in estimated_effect."""
     real_chunk = RetrievedChunk(
-        chunk_id="real-chunk-uuid-1",
-        content="Cover crops increase soil organic carbon stocks.",
-        similarity_score=0.92,
+        chunk_id="chunk-1",
+        content="Conversion to no-till increases soil organic carbon stocks to 30 cm depth.",
+        similarity_score=0.9,
         citation=SourceCitation(
-            document_title="Recarbonizing Global Soils Vol 3",
+            document_title="FAO Report",
             publisher="FAO",
             year=2021,
-            section_title="Cover Cropping",
-            page=21,
-            topics=["soil", "carbon"],
-            url_or_doi="https://doi.org/10.4060/cb6595en",
+            section_title="No-Till",
+            page=74,
+            topics=["soil"],
         ),
     )
-    available_chunks_map = {"real-chunk-uuid-1": real_chunk}
 
-    src = RecommendationSource(
-        chunk_id="real-chunk-uuid-1",
-        document_title="Recarbonizing Global Soils Vol 3",
-        publisher="FAO",
-        year=2021,
-        section_title="Cover Cropping",
-        page=21,
-        citation="[FAO, 2021] Recarbonizing Global Soils Vol 3",
-    )
+    # Number '30' is in the text -> Should pass
+    is_valid, unsupp = verify_numeric_grounding("Measures carbon changes to 30 cm depth.", [real_chunk])
+    assert is_valid is True
+    assert len(unsupp) == 0
 
-    rec = Recommendation(
-        action="Legume Cover Cropping",
-        mechanism="Fixes nitrogen to optimize C:N ratio and stabilize carbon in MAOM.",
-        variable_interactions=["Nitrogen Fixation <-> Soil Carbon Stabilization", "Ground Cover <-> Soil Moisture"],
-        impacted_metrics=["SOC", "Water retention"],
-        estimated_effect="+0.32 to +0.55 t C/ha/yr",
-        time_horizon="short-term",
-        confidence="high",
-        sources=[src],
-    )
-
-    valid_recs, error_log = validate_and_filter_recommendations(
-        recommendations=[rec],
-        available_chunks_map=available_chunks_map,
-        strict=True,
-    )
-
-    assert len(valid_recs) == 1
-    assert len(error_log) == 0
-    assert valid_recs[0].sources[0].page == 21
+    # Number '0.55' is NOT in the text -> Must fail!
+    is_valid, unsupp = verify_numeric_grounding("Increases carbon by 0.55 t C/ha/yr.", [real_chunk])
+    assert is_valid is False
+    assert "0.55" in unsupp
 
 
 # ---------------------------------------------------------------------------
