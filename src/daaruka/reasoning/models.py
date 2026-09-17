@@ -135,6 +135,10 @@ class ReasoningAssessmentOutput(BaseModel):
     enriched_geo_data: Optional[Dict[str, Any]] = Field(
         default=None, description="Observational data fetched from SoilGrids and GBIF if coordinates were supplied"
     )
+    data_provenance: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Explicit provenance mapping for each field (e.g. 'user-provided', 'auto-enriched from SoilGrids')",
+    )
     retrieved_evidence_count: int = Field(
         ..., description="Total scientific chunks retrieved and evaluated from the vector base"
     )
