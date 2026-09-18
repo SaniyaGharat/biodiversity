@@ -17,6 +17,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Shutdown tasks (e.g. close connection pools)
 
 
+from pathlib import Path
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+STATIC_DIR = Path(__file__).parent / "static"
+INDEX_HTML = STATIC_DIR / "index.html"
+
 def create_application() -> FastAPI:
     """FastAPI application factory."""
     application = FastAPI(
@@ -48,6 +55,18 @@ def create_application() -> FastAPI:
 
     # Include Versioned API Router
     application.include_router(api_router, prefix=settings.API_V1_STR)
+
+    # Mount static assets if directory exists
+    if STATIC_DIR.exists():
+        application.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+    # Serve Single-Page Conversational UI on Root
+    @application.get("/", include_in_schema=False)
+    async def serve_index() -> FileResponse:
+        """Serve the self-contained static frontend."""
+        if INDEX_HTML.exists():
+            return FileResponse(INDEX_HTML, media_type="text/html")
+        return FileResponse(STATIC_DIR / "index.html", media_type="text/html")
 
     return application
 
