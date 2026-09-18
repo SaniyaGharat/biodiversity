@@ -10,6 +10,18 @@ An AI-powered Biodiversity & Ecological Intelligence platform built for the **Da
 
 ---
 
+## 🌐 Live Deployed Application
+
+- **Live Deployed Base URL**: [https://biodiversity-l1ge.onrender.com](https://biodiversity-l1ge.onrender.com)
+- **Interactive Swagger API Docs**: [https://biodiversity-l1ge.onrender.com/docs](https://biodiversity-l1ge.onrender.com/docs)
+- **ReDoc UI**: [https://biodiversity-l1ge.onrender.com/redoc](https://biodiversity-l1ge.onrender.com/redoc)
+- **Health Check Endpoint**: [https://biodiversity-l1ge.onrender.com/health](https://biodiversity-l1ge.onrender.com/health)
+
+> [!NOTE]
+> Free-tier hosting — the first request after a period of inactivity may take 30-60 seconds to respond while the instance wakes up.
+
+---
+
 ## 🏛️ System Architecture
 
 The platform is designed around four decoupled, modular subsystems:
